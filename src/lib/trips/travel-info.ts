@@ -8,6 +8,7 @@ import { TRIP_DAY_COUNT } from "@/lib/constants";
 export const ARRIVAL_BUFFER_MINUTES = 120;
 
 export type TripTravelSettings = {
+  start_date: string | null;
   flight_arrival: string | null;
   flight_departure: string | null;
   flight_outbound_number: string | null;
@@ -145,12 +146,13 @@ export function hasAnyTripTravelInfo(settings: TripTravelSettings): boolean {
 }
 
 export const TRIP_TRAVEL_SELECT =
-  "flight_arrival, flight_departure, flight_outbound_number, flight_return_number, hotel_checkin, hotel_checkout, base_location, airport_transfer_minutes";
+  "start_date, flight_arrival, flight_departure, flight_outbound_number, flight_return_number, hotel_checkin, hotel_checkout, base_location, airport_transfer_minutes";
 
 export function normalizeTripTravelSettings(
   row: Partial<TripTravelSettings> | null | undefined,
 ): TripTravelSettings {
   return {
+    start_date: row?.start_date ?? null,
     flight_arrival: row?.flight_arrival ?? null,
     flight_departure: row?.flight_departure ?? null,
     flight_outbound_number: row?.flight_outbound_number?.trim() || null,

@@ -107,6 +107,7 @@ export async function updateTripSettingsAction(
   const { error } = await supabase
     .from("trips")
     .update({
+      start_date: settings.start_date,
       flight_arrival: settings.flight_arrival,
       flight_departure: settings.flight_departure,
       flight_outbound_number: settings.flight_outbound_number?.trim() || null,

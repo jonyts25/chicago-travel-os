@@ -8,6 +8,7 @@ import {
   type ItineraryDayConstraintsInput,
   type TripDayConstraintsInput,
 } from "@/lib/itinerary/day-constraints";
+import { syncItineraryDayDatesFromAnchor } from "@/lib/itinerary/sync-day-dates";
 import type {
   PlanningBoardData,
   PlanningDay,
@@ -16,6 +17,11 @@ import type {
   TripPlanningSettings,
 } from "@/lib/itinerary/schema";
 import { hasCoordinates } from "@/lib/places/schema";
+import {
+  describeTripAnchorSource,
+  resolveTripAnchorDate,
+  resolveTripDayCalendar,
+} from "@/lib/trips/trip-calendar";
 import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,7 +40,7 @@ export async function loadPlanningBoardData(): Promise<{
   data: PlanningBoardData | null;
   error: string | null;
 }> {
-  const { days: itineraryDays, error: ensureError } =
+  const { days: initialDays, error: ensureError } =
     await ensureItineraryDays(CHICAGO_TRIP_ID);
 
   if (ensureError) {
@@ -42,9 +48,39 @@ export async function loadPlanningBoardData(): Promise<{
   }
 
   const supabase = await createClient();
+
+  const { data: tripResult, error: tripResultError } = await supabase
+    .from("trips")
+    .select(TRIP_TRAVEL_SELECT)
+    .eq("id", CHICAGO_TRIP_ID)
+    .maybeSingle();
+
+  if (tripResultError) {
+    return { data: null, error: tripResultError.message };
+  }
+
+  const tripSettings: TripPlanningSettings = normalizeTripTravelSettings(tripResult);
+  const anchorInput = {
+    startDate: tripSettings.start_date,
+    hotelCheckin: tripSettings.hotel_checkin,
+    flightArrival: tripSettings.flight_arrival,
+  };
+  const tripAnchorDate = resolveTripAnchorDate(anchorInput);
+  const tripAnchorSource = describeTripAnchorSource(anchorInput);
+
+  const { days: itineraryDays, error: syncError } = await syncItineraryDayDatesFromAnchor(
+    CHICAGO_TRIP_ID,
+    initialDays,
+    anchorInput,
+  );
+
+  if (syncError) {
+    return { data: null, error: syncError };
+  }
+
   const dayIds = itineraryDays.map((day) => day.id);
 
-  const [itemsResult, unplannedResult, tripResult] = await Promise.all([
+  const [itemsResult, unplannedResult] = await Promise.all([
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
@@ -60,11 +96,6 @@ export async function loadPlanningBoardData(): Promise<{
       .eq("trip_id", CHICAGO_TRIP_ID)
       .eq("status", PLACE_STATUS_UNPLANNED)
       .order("name", { ascending: true }),
-    supabase
-      .from("trips")
-      .select(TRIP_TRAVEL_SELECT)
-      .eq("id", CHICAGO_TRIP_ID)
-      .maybeSingle(),
   ]);
 
   if (itemsResult.error) {
@@ -75,25 +106,23 @@ export async function loadPlanningBoardData(): Promise<{
     return { data: null, error: unplannedResult.error.message };
   }
 
-  if (tripResult.error) {
-    return { data: null, error: tripResult.error.message };
-  }
-
-  const tripSettings: TripPlanningSettings = normalizeTripTravelSettings(tripResult.data);
-
   const tripConstraints: TripDayConstraintsInput = {
     flightArrival: tripSettings.flight_arrival,
     flightDeparture: tripSettings.flight_departure,
     airportTransferMinutes: tripSettings.airport_transfer_minutes,
   };
 
-  const dayConstraintInputs: ItineraryDayConstraintsInput[] = itineraryDays.map((day) => ({
-    id: day.id,
-    dayNumber: day.day_number,
-    date: day.date,
-    focus: day.focus,
-    dayEndOverride: day.day_end_override,
-  }));
+  const dayConstraintInputs: ItineraryDayConstraintsInput[] = itineraryDays.map((day) => {
+    const calendar = resolveTripDayCalendar(day.day_number, day.date, tripAnchorDate);
+
+    return {
+      id: day.id,
+      dayNumber: day.day_number,
+      date: calendar.calendarDate ?? day.date,
+      focus: day.focus,
+      dayEndOverride: day.day_end_override,
+    };
+  });
 
   const itemsByDay = new Map<string, PlanningDayItem[]>();
 
@@ -121,11 +150,14 @@ export async function loadPlanningBoardData(): Promise<{
     const items = itemsByDay.get(day.id) ?? [];
     items.sort((a, b) => a.order_index - b.order_index);
 
+    const calendar = resolveTripDayCalendar(day.day_number, day.date, tripAnchorDate);
+    const constraintDate = calendar.calendarDate ?? day.date;
+
     const resolved = resolveDayConstraints(
       {
         id: day.id,
         dayNumber: day.day_number,
-        date: day.date,
+        date: constraintDate,
         focus: day.focus,
         dayEndOverride: day.day_end_override,
       },
@@ -136,7 +168,7 @@ export async function loadPlanningBoardData(): Promise<{
     return {
       id: day.id,
       day_number: day.day_number,
-      date: day.date,
+      date: constraintDate,
       focus: day.focus,
       day_end_override: day.day_end_override,
       focus_category: resolved.focusCategory,
@@ -145,6 +177,8 @@ export async function loadPlanningBoardData(): Promise<{
       day_start_source: resolved.dayStartSource,
       day_active_minutes_limit: resolved.dayActiveMinutesLimit,
       day_start_minutes: resolved.dayStartMinutes,
+      calendar_date: calendar.calendarDate,
+      calendar_date_label: calendar.calendarDateLabel,
       items,
     };
   });
@@ -180,6 +214,8 @@ export async function loadPlanningBoardData(): Promise<{
       unplannedPlaces,
       unlocatedPlaces,
       tripSettings,
+      tripAnchorDate,
+      tripAnchorSource,
     },
     error: null,
   };

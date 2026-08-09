@@ -61,10 +61,13 @@ export type PlanningDay = {
   day_start_source: "flight_arrival" | "default";
   day_active_minutes_limit: number;
   day_start_minutes: number;
+  calendar_date: string | null;
+  calendar_date_label: string | null;
   items: PlanningDayItem[];
 };
 
 export type TripPlanningSettings = {
+  start_date: string | null;
   flight_arrival: string | null;
   flight_departure: string | null;
   flight_outbound_number: string | null;
@@ -80,4 +83,6 @@ export type PlanningBoardData = {
   unplannedPlaces: PlanningPlace[];
   unlocatedPlaces: PlanningPlace[];
   tripSettings: TripPlanningSettings;
+  tripAnchorDate: string | null;
+  tripAnchorSource: string | null;
 };

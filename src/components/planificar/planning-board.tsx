@@ -23,8 +23,8 @@ import {
   formatDayEndMinutes,
   formatDayEndSourceLabel,
   formatDayStartSourceLabel,
-  formatDayTabLabel,
 } from "@/lib/itinerary/day-constraints";
+import { formatPlanningDayTabLabel } from "@/lib/trips/trip-calendar";
 import { DEFAULT_DAY_START_MINUTES, formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
@@ -36,6 +36,8 @@ export function PlanningBoard({
   unplannedPlaces,
   unlocatedPlaces,
   tripSettings,
+  tripAnchorDate,
+  tripAnchorSource,
 }: PlanningBoardProps) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -220,6 +222,16 @@ export function PlanningBoard({
       </Card>
 
       <Card title="Itinerario por día">
+        {tripAnchorDate && tripAnchorSource ? (
+          <p className={cn(typography.muted, "mt-1")}>
+            Fechas calculadas desde {tripAnchorSource}.
+          </p>
+        ) : (
+          <p className={cn(typography.muted, "mt-1")}>
+            Captura `trips.start_date`, check-in o llegada del vuelo en Ajustes para ver fechas reales.
+          </p>
+        )}
+
         <div
           className="mt-4 flex gap-2 overflow-x-auto pb-1"
           role="tablist"
@@ -240,7 +252,11 @@ export function PlanningBoard({
                   : buttons.secondary,
               )}
             >
-              {formatDayTabLabel(day.day_number, day.focus)}
+              {formatPlanningDayTabLabel(
+                day.day_number,
+                day.focus,
+                day.calendar_date_label,
+              )}
               <span className={cn(typography.muted, "ml-2 font-normal")}>
                 ({day.items.length})
               </span>
@@ -450,9 +466,12 @@ function DayPlanPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className={typography.secondary}>
-            Día {day.day_number}
-            {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
-            {formatDurationMinutes(totalMinutes)}
+            {formatPlanningDayTabLabel(
+              day.day_number,
+              day.focus,
+              day.calendar_date_label,
+            )}
+            {" · "}Duración estimada: {formatDurationMinutes(totalMinutes)}
           </p>
           <p className={cn(typography.muted, "mt-1")}>
             Inicio: {formatDayEndMinutes(day.day_start_minutes)} (

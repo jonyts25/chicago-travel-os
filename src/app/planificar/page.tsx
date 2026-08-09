@@ -37,6 +37,8 @@ export default async function PlanificarPage() {
           unplannedPlaces={data.unplannedPlaces}
           unlocatedPlaces={data.unlocatedPlaces}
           tripSettings={data.tripSettings}
+          tripAnchorDate={data.tripAnchorDate}
+          tripAnchorSource={data.tripAnchorSource}
         />
       ) : (
         <div className="space-y-4">

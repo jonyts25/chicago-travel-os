@@ -15,6 +15,7 @@ import {
 } from "@/lib/itinerary/day-constraints";
 import type { TripPlanningSettings } from "@/lib/itinerary/schema";
 import type { ExtractedTravelConfirmation } from "@/lib/trips/travel-info";
+import { fromDateInputValue, toDateInputValue } from "@/lib/trips/trip-calendar";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type TripSettingsFormProps = {
@@ -83,6 +84,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
 
     startSave(async () => {
       const result = await updateTripSettingsAction({
+        start_date: form.start_date,
         flight_arrival: form.flight_arrival,
         flight_departure: form.flight_departure,
         flight_outbound_number: form.flight_outbound_number?.trim() || null,
@@ -146,6 +148,27 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <section className="flex flex-col gap-4">
+          <h3 className={typography.sectionTitle}>Calendario</h3>
+
+          <label htmlFor="trip-start-date" className={inputs.label}>
+            Fecha de inicio del viaje (Día 1)
+            <input
+              id="trip-start-date"
+              type="date"
+              value={toDateInputValue(form.start_date)}
+              onChange={(event) =>
+                updateField("start_date", fromDateInputValue(event.target.value))
+              }
+              className={inputs.base}
+            />
+          </label>
+          <p className={typography.muted}>
+            Define el calendario de los 4 días en /planificar. Si está vacío, se usa check-in o
+            llegada del vuelo como respaldo.
+          </p>
+        </section>
+
         <section className="flex flex-col gap-4">
           <h3 className={typography.sectionTitle}>Vuelos</h3>
 
