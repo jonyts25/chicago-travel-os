@@ -9,6 +9,7 @@ import type {
   PlanningDayItem,
   PlanningPlace,
 } from "@/lib/itinerary/schema";
+import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
 
 type ItemRow = {
@@ -16,6 +17,7 @@ type ItemRow = {
   order_index: number;
   itinerary_day_id: string;
   place_id: string;
+  is_fixed: boolean | null;
   places: PlanningPlace | PlanningPlace[] | null;
 };
 
@@ -38,14 +40,14 @@ export async function loadPlanningBoardData(): Promise<{
       ? supabase
           .from("itinerary_items")
           .select(
-            "id, order_index, itinerary_day_id, place_id, places ( id, name, category, duration_minutes )",
+            "id, order_index, itinerary_day_id, place_id, is_fixed, places ( id, name, category, duration_minutes )",
           )
           .in("itinerary_day_id", dayIds)
           .order("order_index", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("places")
-      .select("id, name, category, duration_minutes")
+      .select("id, name, category, duration_minutes, lat, lng")
       .eq("trip_id", CHICAGO_TRIP_ID)
       .eq("status", PLACE_STATUS_UNPLANNED)
       .order("name", { ascending: true }),
@@ -70,6 +72,7 @@ export async function loadPlanningBoardData(): Promise<{
     const item: PlanningDayItem = {
       id: row.id,
       order_index: row.order_index,
+      is_fixed: Boolean(row.is_fixed),
       place,
     };
 
@@ -90,10 +93,36 @@ export async function loadPlanningBoardData(): Promise<{
     };
   });
 
+  const allUnplanned = (unplannedResult.data ?? []) as Array<
+    PlanningPlace & { lat: number | null; lng: number | null }
+  >;
+
+  const unplannedPlaces: PlanningPlace[] = [];
+  const unlocatedPlaces: PlanningPlace[] = [];
+
+  for (const place of allUnplanned) {
+    if (hasCoordinates(place)) {
+      unplannedPlaces.push({
+        id: place.id,
+        name: place.name,
+        category: place.category,
+        duration_minutes: place.duration_minutes,
+      });
+    } else {
+      unlocatedPlaces.push({
+        id: place.id,
+        name: place.name,
+        category: place.category,
+        duration_minutes: place.duration_minutes,
+      });
+    }
+  }
+
   return {
     data: {
       days,
-      unplannedPlaces: (unplannedResult.data ?? []) as PlanningPlace[],
+      unplannedPlaces,
+      unlocatedPlaces,
     },
     error: null,
   };

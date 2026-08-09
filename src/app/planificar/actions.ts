@@ -6,6 +6,11 @@ import {
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
+import {
+  runFullItineraryOptimizer,
+  runSingleDayItineraryOptimizer,
+} from "@/lib/itinerary/optimizer/run-optimizer";
+import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import { revalidatePath } from "next/cache";
 
 export type PlanningActionResult = {
@@ -119,7 +124,7 @@ export async function removePlaceFromDayAction(
 
   const { data: item, error: itemError } = await supabase
     .from("itinerary_items")
-    .select("id, place_id, itinerary_day_id")
+    .select("id, place_id, itinerary_day_id, is_fixed")
     .eq("id", itineraryItemId)
     .maybeSingle();
 
@@ -129,6 +134,10 @@ export async function removePlaceFromDayAction(
 
   if (!item) {
     return { ok: false, error: "Elemento del itinerario no encontrado." };
+  }
+
+  if (item.is_fixed) {
+    return { ok: false, error: "Este lugar está fijado y no se puede quitar." };
   }
 
   const { data: day, error: dayError } = await supabase
@@ -184,7 +193,7 @@ export async function moveItineraryItemAction(
 
   const { data: current, error: currentError } = await supabase
     .from("itinerary_items")
-    .select("id, order_index, itinerary_day_id")
+    .select("id, order_index, itinerary_day_id, is_fixed")
     .eq("id", itineraryItemId)
     .maybeSingle();
 
@@ -194,6 +203,10 @@ export async function moveItineraryItemAction(
 
   if (!current) {
     return { ok: false, error: "Elemento del itinerario no encontrado." };
+  }
+
+  if (current.is_fixed) {
+    return { ok: false, error: "Este lugar está fijado y no se puede reordenar." };
   }
 
   const { data: day, error: dayError } = await supabase
@@ -271,4 +284,22 @@ export async function moveItineraryItemAction(
 
   revalidatePath("/planificar");
   return { ok: true };
+}
+
+export async function generateItineraryAction(): Promise<OptimizerSummary> {
+  const result = await runFullItineraryOptimizer();
+  if (result.ok) {
+    revalidatePath("/planificar");
+  }
+  return result;
+}
+
+export async function regenerateDayItineraryAction(
+  itineraryDayId: string,
+): Promise<OptimizerSummary> {
+  const result = await runSingleDayItineraryOptimizer(itineraryDayId);
+  if (result.ok) {
+    revalidatePath("/planificar");
+  }
+  return result;
 }
