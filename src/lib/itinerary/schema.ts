@@ -6,6 +6,8 @@ export type ItineraryDay = {
   trip_id: string;
   date: string | null;
   day_number: number;
+  focus: string | null;
+  day_end_override: string | null;
 };
 
 export type ItineraryDayInsert = Pick<
@@ -51,11 +53,23 @@ export type PlanningDay = {
   id: string;
   day_number: number;
   date: string | null;
+  focus: string | null;
+  day_end_override: string | null;
+  focus_category: string | null;
+  focus_label: string | null;
+  day_end_source: "manual" | "flight" | "default";
+  day_active_minutes_limit: number;
   items: PlanningDayItem[];
+};
+
+export type TripPlanningSettings = {
+  flight_departure: string | null;
+  airport_transfer_minutes: number;
 };
 
 export type PlanningBoardData = {
   days: PlanningDay[];
   unplannedPlaces: PlanningPlace[];
   unlocatedPlaces: PlanningPlace[];
+  tripSettings: TripPlanningSettings;
 };

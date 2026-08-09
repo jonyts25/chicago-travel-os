@@ -25,6 +25,7 @@ export type OptimizerPlace = {
   lng: number;
   durationMinutes: number;
   priorityRank: number;
+  category: string | null;
 };
 
 export type OptimizerDayContext = {
@@ -34,6 +35,9 @@ export type OptimizerDayContext = {
   lockedPlaces: OptimizerPlace[];
   usedMinutes: number;
   centroid: { lat: number; lng: number } | null;
+  dayActiveMinutesLimit: number;
+  focusCategory: string | null;
+  focusLabel: string | null;
 };
 
 export type OptimizerInput = {

@@ -3,11 +3,17 @@ import {
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { ensureItineraryDays } from "@/lib/itinerary/ensure-days";
+import {
+  resolveDayConstraints,
+  type ItineraryDayConstraintsInput,
+  type TripDayConstraintsInput,
+} from "@/lib/itinerary/day-constraints";
 import type {
   PlanningBoardData,
   PlanningDay,
   PlanningDayItem,
   PlanningPlace,
+  TripPlanningSettings,
 } from "@/lib/itinerary/schema";
 import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +43,7 @@ export async function loadPlanningBoardData(): Promise<{
   const supabase = await createClient();
   const dayIds = itineraryDays.map((day) => day.id);
 
-  const [itemsResult, unplannedResult] = await Promise.all([
+  const [itemsResult, unplannedResult, tripResult] = await Promise.all([
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
@@ -53,6 +59,11 @@ export async function loadPlanningBoardData(): Promise<{
       .eq("trip_id", CHICAGO_TRIP_ID)
       .eq("status", PLACE_STATUS_UNPLANNED)
       .order("name", { ascending: true }),
+    supabase
+      .from("trips")
+      .select("flight_departure, airport_transfer_minutes")
+      .eq("id", CHICAGO_TRIP_ID)
+      .maybeSingle(),
   ]);
 
   if (itemsResult.error) {
@@ -62,6 +73,28 @@ export async function loadPlanningBoardData(): Promise<{
   if (unplannedResult.error) {
     return { data: null, error: unplannedResult.error.message };
   }
+
+  if (tripResult.error) {
+    return { data: null, error: tripResult.error.message };
+  }
+
+  const tripSettings: TripPlanningSettings = {
+    flight_departure: tripResult.data?.flight_departure ?? null,
+    airport_transfer_minutes: tripResult.data?.airport_transfer_minutes ?? 90,
+  };
+
+  const tripConstraints: TripDayConstraintsInput = {
+    flightDeparture: tripSettings.flight_departure,
+    airportTransferMinutes: tripSettings.airport_transfer_minutes,
+  };
+
+  const dayConstraintInputs: ItineraryDayConstraintsInput[] = itineraryDays.map((day) => ({
+    id: day.id,
+    dayNumber: day.day_number,
+    date: day.date,
+    focus: day.focus,
+    dayEndOverride: day.day_end_override,
+  }));
 
   const itemsByDay = new Map<string, PlanningDayItem[]>();
 
@@ -89,10 +122,28 @@ export async function loadPlanningBoardData(): Promise<{
     const items = itemsByDay.get(day.id) ?? [];
     items.sort((a, b) => a.order_index - b.order_index);
 
+    const resolved = resolveDayConstraints(
+      {
+        id: day.id,
+        dayNumber: day.day_number,
+        date: day.date,
+        focus: day.focus,
+        dayEndOverride: day.day_end_override,
+      },
+      tripConstraints,
+      dayConstraintInputs,
+    );
+
     return {
       id: day.id,
       day_number: day.day_number,
       date: day.date,
+      focus: day.focus,
+      day_end_override: day.day_end_override,
+      focus_category: resolved.focusCategory,
+      focus_label: resolved.focusLabel,
+      day_end_source: resolved.dayEndSource,
+      day_active_minutes_limit: resolved.dayActiveMinutesLimit,
       items,
     };
   });
@@ -127,6 +178,7 @@ export async function loadPlanningBoardData(): Promise<{
       days,
       unplannedPlaces,
       unlocatedPlaces,
+      tripSettings,
     },
     error: null,
   };

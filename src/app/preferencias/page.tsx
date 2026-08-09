@@ -1,4 +1,5 @@
 import { PreferencesForm } from "@/components/preferencias/preferences-form";
+import { TripSettingsForm } from "@/components/preferencias/trip-settings-form";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
@@ -25,7 +26,7 @@ export default async function PreferenciasPage() {
   const preferencesResult = await getUserPreferencesAction();
   const { data: trip } = await supabase
     .from("trips")
-    .select("base_location")
+    .select("base_location, flight_departure, airport_transfer_minutes")
     .eq("id", CHICAGO_TRIP_ID)
     .maybeSingle();
 
@@ -45,6 +46,15 @@ export default async function PreferenciasPage() {
           Configurable en Supabase (`trips.base_location`).
         </p>
       </Card>
+
+      <div className="mt-6">
+        <TripSettingsForm
+          initialSettings={{
+            flight_departure: trip?.flight_departure ?? null,
+            airport_transfer_minutes: trip?.airport_transfer_minutes ?? 90,
+          }}
+        />
+      </div>
 
       <Card className="mt-6" title="Sesión">
         <p className={typography.secondary}>

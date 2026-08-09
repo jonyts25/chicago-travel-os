@@ -5,6 +5,11 @@ import {
 } from "@/lib/constants";
 import { ensureItineraryDays } from "@/lib/itinerary/ensure-days";
 import {
+  resolveDayConstraints,
+  type ItineraryDayConstraintsInput,
+  type TripDayConstraintsInput,
+} from "@/lib/itinerary/day-constraints";
+import {
   buildFullTripPlan,
   buildSingleDayPlan,
   estimateRouteMinutesFromDurations,
@@ -29,6 +34,7 @@ type PlaceRow = {
   duration_minutes: number | null;
   priority: string | null;
   status: string;
+  category: string | null;
 };
 
 type ItemRow = {
@@ -51,6 +57,7 @@ function toOptimizerPlace(row: PlaceRow): OptimizerPlace | null {
     lng: row.lng,
     durationMinutes: row.duration_minutes ?? DEFAULT_VISIT_MINUTES,
     priorityRank: normalizePriorityRank(row.priority),
+    category: row.category,
   };
 }
 
@@ -245,19 +252,24 @@ async function loadOptimizerContext(): Promise<
 
   const dayIds = days.map((day) => day.id);
 
-  const [placesResult, itemsResult] = await Promise.all([
+  const [placesResult, itemsResult, tripResult] = await Promise.all([
     supabase
       .from("places")
-      .select("id, name, lat, lng, duration_minutes, priority, status")
+      .select("id, name, lat, lng, duration_minutes, priority, status, category")
       .eq("trip_id", CHICAGO_TRIP_ID),
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
           .select(
-            "id, itinerary_day_id, place_id, order_index, is_fixed, places ( id, name, lat, lng, duration_minutes, priority, status )",
+            "id, itinerary_day_id, place_id, order_index, is_fixed, places ( id, name, lat, lng, duration_minutes, priority, status, category )",
           )
           .in("itinerary_day_id", dayIds)
       : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("trips")
+      .select("flight_departure, airport_transfer_minutes")
+      .eq("id", CHICAGO_TRIP_ID)
+      .maybeSingle(),
   ]);
 
   if (placesResult.error) {
@@ -287,6 +299,33 @@ async function loadOptimizerContext(): Promise<
       },
     };
   }
+
+  if (tripResult.error) {
+    return {
+      ok: false,
+      summary: {
+        ok: false,
+        error: tripResult.error.message,
+        assignedByDay: [],
+        unassignedDueToTime: 0,
+        withoutCoordinates: 0,
+        warnings: [],
+      },
+    };
+  }
+
+  const tripConstraints: TripDayConstraintsInput = {
+    flightDeparture: tripResult.data?.flight_departure ?? null,
+    airportTransferMinutes: tripResult.data?.airport_transfer_minutes ?? 90,
+  };
+
+  const dayConstraintInputs: ItineraryDayConstraintsInput[] = days.map((day) => ({
+    id: day.id,
+    dayNumber: day.day_number,
+    date: day.date,
+    focus: day.focus,
+    dayEndOverride: day.day_end_override,
+  }));
 
   const allPlaces = (placesResult.data ?? []) as PlaceRow[];
   const unplannedPlaces = allPlaces.filter((place) => place.status === PLACE_STATUS_UNPLANNED);
@@ -334,6 +373,18 @@ async function loadOptimizerContext(): Promise<
       lockedPlaces.map((place) => place.durationMinutes),
     );
 
+    const resolved = resolveDayConstraints(
+      {
+        id: day.id,
+        dayNumber: day.day_number,
+        date: day.date,
+        focus: day.focus,
+        dayEndOverride: day.day_end_override,
+      },
+      tripConstraints,
+      dayConstraintInputs,
+    );
+
     return {
       dayId: day.id,
       dayNumber: day.day_number,
@@ -341,6 +392,9 @@ async function loadOptimizerContext(): Promise<
       lockedPlaces,
       usedMinutes,
       centroid: averageLatLng(lockedPlaces),
+      dayActiveMinutesLimit: resolved.dayActiveMinutesLimit,
+      focusCategory: resolved.focusCategory,
+      focusLabel: resolved.focusLabel,
     };
   });
 

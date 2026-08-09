@@ -11,6 +11,7 @@ import {
 } from "@/app/planificar/actions";
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
 import { PlaceSuggestionsPanel } from "@/components/planificar/place-suggestions-panel";
+import { DaySettingsEditor } from "@/components/planificar/day-settings-editor";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,7 +19,12 @@ import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
-import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
+import {
+  formatDayEndMinutes,
+  formatDayEndSourceLabel,
+  formatDayTabLabel,
+} from "@/lib/itinerary/day-constraints";
+import { DEFAULT_DAY_START_MINUTES, formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
@@ -28,6 +34,7 @@ export function PlanningBoard({
   days,
   unplannedPlaces,
   unlocatedPlaces,
+  tripSettings,
 }: PlanningBoardProps) {
   const router = useRouter();
   const { showToast } = useToast();
@@ -112,7 +119,7 @@ export function PlanningBoard({
 
       <Card
         title="Optimizador"
-        subtitle="Distribuye lugares sin planear con coordenadas entre los 4 días (~8 h activas/día + 20 min de traslado entre paradas)."
+        subtitle="Distribuye lugares sin planear respetando enfoque por día, hora límite (manual, vuelo o 22:00) y ~20 min de traslado entre paradas."
       >
         <div className="mt-4 flex justify-end">
           <Button
@@ -232,7 +239,7 @@ export function PlanningBoard({
                   : buttons.secondary,
               )}
             >
-              Día {day.day_number}
+              {formatDayTabLabel(day.day_number, day.focus)}
               <span className={cn(typography.muted, "ml-2 font-normal")}>
                 ({day.items.length})
               </span>
@@ -241,9 +248,12 @@ export function PlanningBoard({
         </div>
 
         {activeDay ? (
-          <DayPlanPanel
-            day={activeDay}
-            disabled={isPending}
+          <>
+            <DaySettingsEditor day={activeDay} disabled={isPending} />
+            <DayPlanPanel
+              day={activeDay}
+              tripSettings={tripSettings}
+              disabled={isPending}
             onOpenPlace={(placeId) => setSelectedPlaceId(placeId)}
             onMoveUp={(itemId) =>
               runAction(
@@ -269,7 +279,8 @@ export function PlanningBoard({
                 "Día regenerado correctamente.",
               )
             }
-          />
+            />
+          </>
         ) : null}
       </Card>
     </div>
@@ -410,6 +421,7 @@ function UnplannedPlaceCard({
 
 function DayPlanPanel({
   day,
+  tripSettings,
   disabled,
   onOpenPlace,
   onMoveUp,
@@ -418,6 +430,7 @@ function DayPlanPanel({
   onRegenerateDay,
 }: {
   day: PlanningDay;
+  tripSettings: PlanningBoardData["tripSettings"];
   disabled: boolean;
   onOpenPlace: (placeId: string) => void;
   onMoveUp: (itemId: string) => void;
@@ -429,15 +442,28 @@ function DayPlanPanel({
     (sum, item) => sum + (item.place.duration_minutes ?? 0),
     0,
   );
+  const dayEndMinutes = DEFAULT_DAY_START_MINUTES + day.day_active_minutes_limit;
 
   return (
     <div className="mt-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className={typography.secondary}>
-          Día {day.day_number}
-          {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
-          {formatDurationMinutes(totalMinutes)}
-        </p>
+        <div>
+          <p className={typography.secondary}>
+            Día {day.day_number}
+            {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
+            {formatDurationMinutes(totalMinutes)}
+          </p>
+          <p className={cn(typography.muted, "mt-1")}>
+            Hora límite: {formatDayEndMinutes(dayEndMinutes)} (
+            {formatDayEndSourceLabel(day.day_end_source)})
+            {day.day_end_source === "flight" && tripSettings.flight_departure
+              ? ` · vuelo ${new Date(tripSettings.flight_departure).toLocaleString("es-MX", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                })}`
+              : ""}
+          </p>
+        </div>
         <Button
           type="button"
           variant="secondary"

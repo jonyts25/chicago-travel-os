@@ -5,6 +5,7 @@ import {
   parseTimeToMinutes,
   type DayScheduleItemInput,
 } from "@/lib/itinerary/schedule-day";
+import { loadDayEndWarningMinutes } from "@/lib/itinerary/load-day-constraints";
 import { createClient } from "@/lib/supabase/server";
 
 type ScheduleItemRow = {
@@ -43,7 +44,9 @@ export async function recalculateDaySchedule(
     };
   });
 
-  const { schedules, warnings } = calculateDaySchedule(items);
+  const { schedules, warnings } = calculateDaySchedule(items, {
+    dayEndWarningMinutes: await loadDayEndWarningMinutes(supabase, itineraryDayId),
+  });
   const durationById = new Map(items.map((item) => [item.id, item.durationMinutes]));
 
   for (const schedule of schedules) {

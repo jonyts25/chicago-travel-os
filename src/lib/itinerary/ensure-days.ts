@@ -9,7 +9,7 @@ export async function ensureItineraryDays(
 
   const { data: existing, error: fetchError } = await supabase
     .from("itinerary_days")
-    .select("id, trip_id, day_number, date")
+    .select("id, trip_id, day_number, date, focus, day_end_override")
     .eq("trip_id", tripId)
     .order("day_number", { ascending: true });
 
@@ -47,7 +47,7 @@ export async function ensureItineraryDays(
 
   const { data: refreshed, error: refreshError } = await supabase
     .from("itinerary_days")
-    .select("id, trip_id, day_number, date")
+    .select("id, trip_id, day_number, date, focus, day_end_override")
     .eq("trip_id", tripId)
     .order("day_number", { ascending: true });
 

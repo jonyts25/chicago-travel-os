@@ -319,3 +319,53 @@ export async function regenerateDayItineraryAction(
   }
   return result;
 }
+
+export async function updateItineraryDaySettingsAction(
+  itineraryDayId: string,
+  focus: string | null,
+  dayEndOverride: string | null,
+): Promise<PlanningActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Debes iniciar sesión." };
+  }
+
+  const { data: day, error: dayError } = await supabase
+    .from("itinerary_days")
+    .select("id")
+    .eq("id", itineraryDayId)
+    .eq("trip_id", CHICAGO_TRIP_ID)
+    .maybeSingle();
+
+  if (dayError) {
+    return { ok: false, error: dayError.message };
+  }
+
+  if (!day) {
+    return { ok: false, error: "Día no encontrado." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("itinerary_days")
+    .update({
+      focus: focus?.trim() || null,
+      day_end_override: dayEndOverride,
+    })
+    .eq("id", itineraryDayId);
+
+  if (updateError) {
+    return { ok: false, error: updateError.message };
+  }
+
+  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
+  }
+
+  revalidatePath("/planificar");
+  return { ok: true };
+}
