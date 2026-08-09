@@ -31,6 +31,34 @@ export function BottomTabBar() {
   const paths = tripPaths(tripNavigation.tripId);
   const scheduled = isScheduledTrip(tripNavigation.tripType);
 
+  const descubrirTab: TabItem = {
+    href: paths.descubrir,
+    label: "Descubrir",
+    matchPrefixes: [paths.descubrir],
+    icon: (active) => <IconDiscover active={active} />,
+  };
+
+  const mapTab: TabItem = {
+    href: paths.map,
+    label: "Mapa",
+    matchPrefixes: [paths.map],
+    icon: (active) => <IconMap active={active} />,
+  };
+
+  const importTab: TabItem = {
+    href: paths.import,
+    label: "Importar",
+    matchPrefixes: [paths.import],
+    icon: (active) => <IconImport active={active} />,
+  };
+
+  const settingsTab: TabItem = {
+    href: paths.preferencias,
+    label: "Ajustes",
+    matchPrefixes: [paths.preferencias, paths.dashboard],
+    icon: (active) => <IconSettings active={active} />,
+  };
+
   const tabs: TabItem[] = scheduled
     ? [
         {
@@ -45,24 +73,10 @@ export function BottomTabBar() {
           matchPrefixes: [paths.planificar],
           icon: (active) => <IconPlan active={active} />,
         },
-        {
-          href: paths.map,
-          label: "Mapa",
-          matchPrefixes: [paths.map],
-          icon: (active) => <IconMap active={active} />,
-        },
-        {
-          href: paths.import,
-          label: "Importar",
-          matchPrefixes: [paths.import],
-          icon: (active) => <IconImport active={active} />,
-        },
-        {
-          href: paths.preferencias,
-          label: "Ajustes",
-          matchPrefixes: [paths.preferencias, paths.dashboard],
-          icon: (active) => <IconSettings active={active} />,
-        },
+        descubrirTab,
+        mapTab,
+        importTab,
+        settingsTab,
       ]
     : [
         {
@@ -71,24 +85,10 @@ export function BottomTabBar() {
           matchPrefixes: [paths.lugares],
           icon: (active) => <IconPlaces active={active} />,
         },
-        {
-          href: paths.map,
-          label: "Mapa",
-          matchPrefixes: [paths.map],
-          icon: (active) => <IconMap active={active} />,
-        },
-        {
-          href: paths.import,
-          label: "Importar",
-          matchPrefixes: [paths.import],
-          icon: (active) => <IconImport active={active} />,
-        },
-        {
-          href: paths.preferencias,
-          label: "Ajustes",
-          matchPrefixes: [paths.preferencias, paths.dashboard],
-          icon: (active) => <IconSettings active={active} />,
-        },
+        descubrirTab,
+        mapTab,
+        importTab,
+        settingsTab,
       ];
 
   return (
@@ -100,7 +100,7 @@ export function BottomTabBar() {
       <ul
         className={cn(
           "mx-auto grid max-w-lg",
-          scheduled ? "grid-cols-5" : "grid-cols-4",
+          scheduled ? "grid-cols-6" : "grid-cols-5",
         )}
       >
         {tabs.map((tab) => {
@@ -113,7 +113,8 @@ export function BottomTabBar() {
               <Link
                 href={tab.href}
                 className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] font-medium transition",
+                  "flex min-h-[56px] flex-col items-center justify-center gap-1 px-0.5 py-2 font-medium transition",
+                  scheduled ? "text-[10px]" : "text-[11px]",
                   active ? "text-blue-400" : "text-slate-500 hover:text-slate-300",
                 )}
               >
@@ -125,6 +126,16 @@ export function BottomTabBar() {
         })}
       </ul>
     </nav>
+  );
+}
+
+function IconDiscover({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
+      <circle cx="12" cy="12" r="8" className={active ? "stroke-blue-400" : undefined} />
+      <path d="M12 4v3M12 17v3M4 12h3M17 12h3" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="2" className={active ? "fill-blue-500/30" : undefined} />
+    </svg>
   );
 }
 

@@ -1,5 +1,6 @@
 import { PLACE_STATUS_UNPLANNED } from "@/lib/constants";
 import type { PlanningDay, PlanningPlace } from "@/lib/itinerary/schema";
+import { loadPlaceVisitSummariesForTrip } from "@/lib/places/load-place-visit-summaries";
 import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,6 +73,23 @@ export async function loadPlacesPoolData(
       unplannedPlaces.push(summary);
     } else {
       unlocatedPlaces.push(summary);
+    }
+  }
+
+  const allPlaceIds = [...unplannedPlaces, ...unlocatedPlaces].map((place) => place.id);
+  const visitSummaries = await loadPlaceVisitSummariesForTrip(tripId, allPlaceIds);
+
+  for (const place of unplannedPlaces) {
+    const visitSummary = visitSummaries.get(place.id);
+    if (visitSummary) {
+      place.visitSummary = visitSummary;
+    }
+  }
+
+  for (const place of unlocatedPlaces) {
+    const visitSummary = visitSummaries.get(place.id);
+    if (visitSummary) {
+      place.visitSummary = visitSummary;
     }
   }
 

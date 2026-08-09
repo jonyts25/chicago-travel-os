@@ -15,6 +15,7 @@ import { useToast } from "@/components/ui/toast-provider";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
+import { formatVisitIndicator } from "@/lib/places/place-visits";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlacePool = "located" | "unlocated";
@@ -257,6 +258,7 @@ function UnplannedPlaceCard({
   onAssign: (dayId: string) => void;
 }) {
   const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
+  const visitLabel = formatVisitIndicator(place.visitSummary);
 
   return (
     <li className={cn(surfaces.inset, "p-4")}>
@@ -265,6 +267,7 @@ function UnplannedPlaceCard({
           <PlaceOpenButton name={place.name} onOpen={onOpen} />
           <p className={cn(typography.placeMeta, "mt-1")}>
             {formatCategory(place.category)} · {formatDurationMinutes(place.duration_minutes)}
+            {visitLabel ? ` · ${visitLabel}` : ""}
           </p>
         </div>
 

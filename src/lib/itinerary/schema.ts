@@ -38,6 +38,10 @@ export type PlanningPlace = {
   name: string;
   category: string | null;
   duration_minutes: number | null;
+  visitSummary?: {
+    visitCount: number;
+    averageRating: number | null;
+  };
 };
 
 export type PlanningDayItem = {

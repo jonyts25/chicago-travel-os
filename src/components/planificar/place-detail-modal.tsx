@@ -9,6 +9,7 @@ import {
   updatePlaceAction,
 } from "@/app/planificar/place-actions";
 import { PlaceDocumentsSection } from "@/components/planificar/place-documents-section";
+import { PlaceVisitSection } from "@/components/planificar/place-visit-section";
 import { Button } from "@/components/ui/button";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -338,6 +339,8 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
             </Field>
 
             <PlaceDocumentsSection tripId={tripId} placeId={place.id} />
+
+            <PlaceVisitSection tripId={tripId} placeId={place.id} disabled={isPending} />
 
             <section className={cn(surfaces.inset, "p-4")}>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-200">

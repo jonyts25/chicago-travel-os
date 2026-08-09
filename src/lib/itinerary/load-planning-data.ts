@@ -14,6 +14,7 @@ import type {
   TripPlanningSettings,
 } from "@/lib/itinerary/schema";
 import { hasCoordinates } from "@/lib/places/schema";
+import { loadPlaceVisitSummariesForTrip } from "@/lib/places/load-place-visit-summaries";
 import {
   describeTripAnchorSource,
   resolveTripAnchorDate,
@@ -205,6 +206,16 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
         category: place.category,
         duration_minutes: place.duration_minutes,
       });
+    }
+  }
+
+  const allPlaceIds = [...unplannedPlaces, ...unlocatedPlaces].map((place) => place.id);
+  const visitSummaries = await loadPlaceVisitSummariesForTrip(tripId, allPlaceIds);
+
+  for (const place of [...unplannedPlaces, ...unlocatedPlaces]) {
+    const visitSummary = visitSummaries.get(place.id);
+    if (visitSummary) {
+      place.visitSummary = visitSummary;
     }
   }
 

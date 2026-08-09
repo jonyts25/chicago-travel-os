@@ -14,6 +14,7 @@ export function tripPaths(tripId: string) {
     import: `${base}/import`,
     importAgregar: `${base}/import/agregar`,
     preferencias: `${base}/preferencias`,
+    descubrir: `${base}/descubrir`,
   };
 }
 
@@ -35,6 +36,7 @@ export function revalidateTripPaths(tripId: string): string[] {
     paths.import,
     paths.importAgregar,
     paths.preferencias,
+    paths.descubrir,
     "/",
   ];
 }
