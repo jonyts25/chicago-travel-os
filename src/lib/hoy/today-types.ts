@@ -1,6 +1,7 @@
 import { TRIP_DAY_COUNT } from "@/lib/constants";
 import type { TripTravelSettings } from "@/lib/trips/travel-info";
 import { formatCalendarDateLabel, parseDateOnly } from "@/lib/trips/trip-calendar";
+import { getChicagoDateOnlyString } from "@/lib/trips/chicago-time";
 
 export const ITINERARY_ITEM_STATUS_PENDING = "pending" as const;
 export const ITINERARY_ITEM_STATUS_DONE = "done" as const;
@@ -63,12 +64,16 @@ export function normalizeItemStatus(value: string | null | undefined): Itinerary
   return ITINERARY_ITEM_STATUS_PENDING;
 }
 
+function formatReferenceDateOnly(referenceDate: Date): string {
+  return getChicagoDateOnlyString(referenceDate) ?? formatDateOnly(referenceDate);
+}
+
 export function getTripDayFromStartDate(
   startDate: string,
   referenceDate: Date = new Date(),
 ): number | null {
   const start = parseDateOnly(startDate);
-  const today = parseDateOnly(formatDateOnly(referenceDate));
+  const today = parseDateOnly(formatReferenceDateOnly(referenceDate));
 
   if (!start || !today) {
     return null;
@@ -93,7 +98,7 @@ export function resolveTripTodayPhase(
   }
 
   const start = parseDateOnly(startDate);
-  const today = parseDateOnly(formatDateOnly(referenceDate));
+  const today = parseDateOnly(formatReferenceDateOnly(referenceDate));
 
   if (!start || !today) {
     return "no_start_date";

@@ -7,6 +7,12 @@ import {
   parseTimeToMinutes,
 } from "@/lib/itinerary/schedule-day";
 import { PLACE_CATEGORIES } from "@/lib/places/place-detail";
+import {
+  chicagoDatetimeLocalValueToIso,
+  getChicagoClockMinutes,
+  getChicagoDateOnlyString,
+  isoToChicagoDatetimeLocalValue,
+} from "@/lib/trips/chicago-time";
 import { resolveDayStartMinutesFromArrival } from "@/lib/trips/travel-info";
 
 export type TripDayConstraintsInput = {
@@ -141,7 +147,7 @@ function computeFlightDayEndMinutes(
     flightDate.getTime() - trip.airportTransferMinutes * 60_000,
   );
 
-  return cutoff.getHours() * 60 + cutoff.getMinutes();
+  return getChicagoClockMinutes(cutoff);
 }
 
 function isFlightDepartureDay(
@@ -149,7 +155,7 @@ function isFlightDepartureDay(
   flightDate: Date,
   allDays: ItineraryDayConstraintsInput[],
 ): boolean {
-  const flightDateOnly = formatDateOnly(flightDate);
+  const flightDateOnly = getChicagoDateOnlyString(flightDate) ?? formatDateOnly(flightDate);
   const dayWithMatchingDate = allDays.find(
     (candidate) => candidate.date && candidate.date.startsWith(flightDateOnly),
   );
@@ -176,69 +182,11 @@ function formatDateOnly(date: Date): string {
 }
 
 export function toDatetimeLocalValue(iso: string | null | undefined): string {
-  if (!iso?.trim()) {
-    return "";
-  }
-
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return isoToChicagoDatetimeLocalValue(iso);
 }
 
 export function fromDatetimeLocalValue(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const match = trimmed.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
-  );
-  if (!match) {
-    return null;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hours = Number(match[4]);
-  const minutes = Number(match[5]);
-
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day) ||
-    !Number.isInteger(hours) ||
-    !Number.isInteger(minutes) ||
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > 31 ||
-    hours < 0 ||
-    hours > 23 ||
-    minutes < 0 ||
-    minutes > 59
-  ) {
-    return null;
-  }
-
-  const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day ||
-    date.getHours() !== hours ||
-    date.getMinutes() !== minutes
-  ) {
-    return null;
-  }
-
-  return date.toISOString();
+  return chicagoDatetimeLocalValueToIso(value);
 }
 
 export function formatDayStartSourceLabel(source: DayStartSource): string {
