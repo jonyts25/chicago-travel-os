@@ -18,6 +18,8 @@ type ItemRow = {
   itinerary_day_id: string;
   place_id: string;
   is_fixed: boolean | null;
+  start_time: string | null;
+  end_time: string | null;
   places: PlanningPlace | PlanningPlace[] | null;
 };
 
@@ -40,7 +42,7 @@ export async function loadPlanningBoardData(): Promise<{
       ? supabase
           .from("itinerary_items")
           .select(
-            "id, order_index, itinerary_day_id, place_id, is_fixed, places ( id, name, category, duration_minutes )",
+            "id, order_index, itinerary_day_id, place_id, is_fixed, start_time, end_time, places ( id, name, category, duration_minutes )",
           )
           .in("itinerary_day_id", dayIds)
           .order("order_index", { ascending: true })
@@ -73,6 +75,8 @@ export async function loadPlanningBoardData(): Promise<{
       id: row.id,
       order_index: row.order_index,
       is_fixed: Boolean(row.is_fixed),
+      start_time: row.start_time,
+      end_time: row.end_time,
       place,
     };
 

@@ -6,6 +6,7 @@ import {
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
+import { recalculateDaySchedule } from "@/lib/itinerary/recalculate-day-schedule";
 import {
   runFullItineraryOptimizer,
   runSingleDayItineraryOptimizer,
@@ -106,6 +107,11 @@ export async function assignPlaceToDayAction(
     return { ok: false, error: updateError.message };
   }
 
+  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
+  }
+
   revalidatePath("/planificar");
   return { ok: true };
 }
@@ -172,6 +178,11 @@ export async function removePlaceFromDayAction(
 
   if (updateError) {
     return { ok: false, error: updateError.message };
+  }
+
+  const scheduleResult = await recalculateDaySchedule(supabase, item.itinerary_day_id);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
   }
 
   revalidatePath("/planificar");
@@ -280,6 +291,11 @@ export async function moveItineraryItemAction(
       .eq("id", current.id);
 
     return { ok: false, error: updateNeighborError.message };
+  }
+
+  const scheduleResult = await recalculateDaySchedule(supabase, current.itinerary_day_id);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
   }
 
   revalidatePath("/planificar");

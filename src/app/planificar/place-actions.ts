@@ -6,6 +6,7 @@ import {
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { geocodePlaceWithRetries } from "@/lib/geocoding/nominatim";
+import { recalculateDayScheduleForPlace } from "@/lib/itinerary/recalculate-day-schedule";
 import type {
   PlaceDetail,
   PlaceMutationResult,
@@ -203,6 +204,11 @@ export async function updatePlaceAction(
 
   if (!reservationResult.ok) {
     return reservationResult;
+  }
+
+  const scheduleResult = await recalculateDayScheduleForPlace(supabase, input.placeId);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
   }
 
   revalidatePlaceViews();

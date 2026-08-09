@@ -20,6 +20,7 @@ export type ItineraryItem = {
   order_index: number;
   is_fixed: boolean | null;
   start_time: string | null;
+  end_time: string | null;
 };
 
 export type ItineraryItemInsert = Pick<
@@ -38,6 +39,8 @@ export type PlanningDayItem = {
   id: string;
   order_index: number;
   is_fixed: boolean;
+  start_time: string | null;
+  end_time: string | null;
   place: PlanningPlace;
 };
 
