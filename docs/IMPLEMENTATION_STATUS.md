@@ -115,6 +115,7 @@ curl -X POST "https://TU-APP.railway.app/api/cron/late-checkin-reminder?force=tr
 ## Commits recientes en `main`
 
 ```
+096d3d3  Real calendar dates in /planificar
 67c79b5  Push late check-in reminders
 6c4e79b  Trip travel info (vuelos/hotel + IA)
 44130f7  Optimizer day constraints
@@ -122,8 +123,6 @@ curl -X POST "https://TU-APP.railway.app/api/cron/late-checkin-reminder?force=tr
 acf3ad5  AI place suggestions
 100af43  Place documents
 ```
-
-*(Tras merge de fechas reales, `main` incluirá un commit adicional en esta línea.)*
 
 ---
 
