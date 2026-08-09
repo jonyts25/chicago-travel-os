@@ -21,15 +21,15 @@ npm install
 cp .env.local.example .env.local
 ```
 
-3. Completa `.env.local` con los valores de tu proyecto Supabase (Settings → API):
+3. Completa `.env.local`:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_SITE_URL` (opcional en local; útil en producción)
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NOMINATIM_USER_AGENT` — obligatorio para geocoding (ej. `ChicagoTravelOS/1.0 (tu@email.com)`)
+- `ANTHROPIC_API_KEY` — opcional, enriquecimiento IA (categoría, nombre limpio, duración)
 
 4. En Supabase → Authentication → Providers, habilita **Email** (login con contraseña).
 
-5. Crea los usuarios manualmente en Authentication → Users (no hay registro público en la app).
+5. Crea los usuarios manualmente en Authentication → Users.
 
 6. Arranca el proyecto:
 
@@ -37,27 +37,15 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000). Login en `/login`, ruta protegida de ejemplo en `/dashboard`.
-
 ## Despliegue en Railway
-
-1. Conecta este repositorio en [Railway](https://railway.app/) y crea un servicio desde el repo.
-2. Railway detectará Next.js. Comandos por defecto:
-   - **Build**: `npm run build`
-   - **Start**: `npm run start`
-3. En **Variables** del servicio, configura:
 
 | Variable | Descripción |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon/public key de Supabase |
-| `NEXT_PUBLIC_SITE_URL` | URL pública de la app (ej. `https://tu-app.up.railway.app`) |
-| `GOOGLE_PLACES_API_KEY` | API key server-side para resolver coordenadas vía Places API (Legacy Details con `ftid`) |
-
-4. Genera un dominio público en Railway (Settings → Networking → Generate Domain).
-5. Redeploy después de guardar variables.
-
-La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTPS. La sesión persiste entre aperturas (cookies de Supabase Auth).
+| `NEXT_PUBLIC_SITE_URL` | URL pública de la app |
+| `NOMINATIM_USER_AGENT` | User-Agent para Nominatim (con tu email) |
+| `ANTHROPIC_API_KEY` | Opcional — categorización con Haiku |
 
 ## Scripts
 
@@ -65,25 +53,24 @@ La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTP
 - `npm run build` — build de producción
 - `npm run start` — servidor de producción
 - `npm run lint` — ESLint
+- `npm run import:dry-run -- fixtures/tu-lista.csv` — prueba parser + Nominatim + IA sin Supabase
 
 ## Fase actual
 
-Fase 1: importación de lugares desde Google Takeout en `/import` (CSV o `Saved Places.json`). Mapa y edición de lugares pendientes.
+Fase 1: importación de lugares desde Google Takeout en `/import`.
 
-### Importar lugares (Google Takeout)
+### Importar lugares (Google Takeout → Saved)
 
-1. Ve a [Google Takeout](https://takeout.google.com/) → desmarca todo excepto **Maps**.
-2. Exporta la lista **Saved** (CSV con columnas `Título`, `Nota`, `URL`, `Etiquetas`, `Comentario`).
-3. Habilita **Places API** (Legacy) en [Google Cloud Console](https://console.cloud.google.com/) y crea una API key restringida a esa API.
-4. Agrega `GOOGLE_PLACES_API_KEY` en Railway (solo servidor, sin prefijo `NEXT_PUBLIC_`).
-5. Sube el CSV en `/import`.
+1. [Google Takeout](https://takeout.google.com/) → **Maps** → exporta lista **Saved** (CSV).
+2. Columnas: `Título`, `Nota`, `URL`, `Etiquetas`, `Comentario`.
+3. Sube el CSV en `/import` (requiere login).
 
-**Resolución de coordenadas:** el parser extrae el identificador `0xHEX:0xHEX` de la URL (patrón `!1s…`) y llama a Place Details Legacy:
+**Parser:** nombre desde `Título`, CID (`!1s0xHEX:0xHEX`) → `google_place_id`, URL completa → `maps_url`, notas combinadas.
 
-`GET https://maps.googleapis.com/maps/api/place/details/json?ftid=0x…:0x…&fields=geometry,formatted_address,types&key=…`
+**Geocoding:** Nominatim (`nombre + ", Chicago, IL"`), 1 request/segundo, sin API key.
 
-**Deduplicación:** solo por `google_place_id` (CID/`!1s`) dentro del trip Chicago — dos "Trader Joe's" con IDs distintos se importan ambos.
+**IA (opcional):** Haiku infiere categoría (`Museo`, `Restaurante`, `Compras`, `Atracción`, `Café`, `Otro`), limpia el nombre y asigna duración por defecto. Si falla, el lugar se importa igual.
 
-**Costo aproximado:** 1 request Place Details por lugar nuevo (~$17 USD / 1.000 requests en el SKU Legacy "Places Details" con campos básicos; el tier Essentials nuevo ronda ~$5 / 1.000). Google suele incluir crédito mensual en cuentas nuevas. Para ~50 lugares ≈ $0.25–$0.85.
+**Deduplicación:** solo por `google_place_id` en el trip Chicago.
 
-Un CSV de ejemplo está en `fixtures/google-takeout-chicago.sample.csv`.
+**Resumen:** importados, duplicados, sin coordenadas, sin categoría IA, filas sin CID.

@@ -25,11 +25,11 @@ export function ImportPlacesForm() {
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
-          Archivo de Google Takeout
+          CSV de Google Takeout (Saved)
           <input
             type="file"
             name="file"
-            accept=".json,.geojson,.csv,application/json,text/csv"
+            accept=".csv,text/csv"
             required
             onChange={(event) => {
               const selected = event.target.files?.[0];
@@ -56,25 +56,24 @@ export function ImportPlacesForm() {
         <section className="rounded-xl border border-slate-800 bg-slate-950/80 p-5">
           <h2 className="text-lg font-medium text-white">Resumen de importación</h2>
 
-          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-4 py-3">
-              <dt className="text-emerald-300">Importados</dt>
-              <dd className="mt-1 text-2xl font-semibold text-white">
-                {result.imported}
-              </dd>
-            </div>
-            <div className="rounded-lg border border-amber-500/30 bg-amber-950/30 px-4 py-3">
-              <dt className="text-amber-300">Duplicados</dt>
-              <dd className="mt-1 text-2xl font-semibold text-white">
-                {result.duplicates}
-              </dd>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3">
-              <dt className="text-slate-400">Omitidos</dt>
-              <dd className="mt-1 text-2xl font-semibold text-white">
-                {result.skipped}
-              </dd>
-            </div>
+          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <SummaryCard label="Importados" value={result.imported} tone="emerald" />
+            <SummaryCard label="Duplicados" value={result.duplicates} tone="amber" />
+            <SummaryCard
+              label="Sin coordenadas"
+              value={result.withoutCoordinates}
+              tone="slate"
+            />
+            <SummaryCard
+              label="Sin categoría IA"
+              value={result.withoutAiCategory}
+              tone="slate"
+            />
+            <SummaryCard
+              label="Sin CID en URL"
+              value={result.skippedNoId}
+              tone="slate"
+            />
           </dl>
 
           {result.errors.length > 0 ? (
@@ -94,13 +93,38 @@ export function ImportPlacesForm() {
             </ul>
           ) : null}
 
-          {result.errors.length === 0 && result.imported === 0 && result.duplicates > 0 ? (
+          {result.errors.length === 0 &&
+          result.imported === 0 &&
+          result.duplicates > 0 ? (
             <p className="mt-4 text-sm text-slate-400">
               Todos los lugares del archivo ya existían para este viaje.
             </p>
           ) : null}
         </section>
       ) : null}
+    </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "emerald" | "amber" | "slate";
+}) {
+  const styles = {
+    emerald: "border-emerald-500/30 bg-emerald-950/30 text-emerald-300",
+    amber: "border-amber-500/30 bg-amber-950/30 text-amber-300",
+    slate: "border-slate-700 bg-slate-900/60 text-slate-400",
+  };
+
+  return (
+    <div className={`rounded-lg border px-4 py-3 ${styles[tone]}`}>
+      <dt>{label}</dt>
+      <dd className="mt-1 text-2xl font-semibold text-white">{value}</dd>
     </div>
   );
 }

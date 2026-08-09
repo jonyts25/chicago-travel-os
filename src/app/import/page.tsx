@@ -40,11 +40,14 @@ export default async function ImportPage() {
 
       <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6">
         <p className="text-sm text-slate-400">
-          Sube un CSV de Google Takeout (columnas{" "}
-          <span className="text-slate-300">Título, Nota, URL, Etiquetas, Comentario</span>
-          ) o un <code className="text-slate-300">Saved Places.json</code>.
-          El identificador se extrae de la URL (<code className="text-slate-300">!1s0x…:0x…</code>
-          ) y las coordenadas se resuelven con Google Places API.
+          Sube el CSV de Google Takeout → Saved (columnas{" "}
+          <span className="text-slate-300">
+            Título, Nota, URL, Etiquetas, Comentario
+          </span>
+          ). El CID se extrae de la URL (
+          <code className="text-slate-300">!1s0x…:0x…</code>
+          ), las coordenadas se resuelven con Nominatim (1 req/s) y la
+          categoría/nombre se enriquecen opcionalmente con IA (Haiku).
         </p>
 
         <div className="mt-6">

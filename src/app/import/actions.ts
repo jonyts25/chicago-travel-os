@@ -3,6 +3,15 @@
 import { importGoogleMapsPlaces } from "@/lib/places/import-places";
 import type { ImportPlacesResult } from "@/lib/importers/types";
 
+const EMPTY_RESULT: ImportPlacesResult = {
+  imported: 0,
+  duplicates: 0,
+  withoutCoordinates: 0,
+  withoutAiCategory: 0,
+  skippedNoId: 0,
+  errors: [],
+};
+
 export async function importPlacesAction(
   formData: FormData,
 ): Promise<ImportPlacesResult> {
@@ -10,19 +19,15 @@ export async function importPlacesAction(
 
   if (!(file instanceof File) || file.size === 0) {
     return {
-      imported: 0,
-      duplicates: 0,
-      skipped: 0,
-      errors: ["Selecciona un archivo CSV o JSON válido."],
+      ...EMPTY_RESULT,
+      errors: ["Selecciona un archivo CSV válido."],
     };
   }
 
   const maxBytes = 10 * 1024 * 1024;
   if (file.size > maxBytes) {
     return {
-      imported: 0,
-      duplicates: 0,
-      skipped: 0,
+      ...EMPTY_RESULT,
       errors: ["El archivo supera el límite de 10 MB."],
     };
   }

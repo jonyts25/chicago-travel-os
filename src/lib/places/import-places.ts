@@ -2,7 +2,8 @@ import {
   CHICAGO_TRIP_ID,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
-import { resolvePlaceByFeatureId } from "@/lib/google/places-details";
+import { applyAIEnrichment, enrichPlacesWithAI } from "@/lib/ai/enrich-places";
+import { geocodePlaceInChicago } from "@/lib/geocoding/nominatim";
 import {
   parseGoogleMapsExport,
   partitionPlacesByDuplicates,
@@ -15,7 +16,7 @@ type PlaceRow = {
   google_place_id: string | null;
 };
 
-const PLACES_API_DELAY_MS = 50;
+const NOMINATIM_DELAY_MS = 1000;
 
 export async function importGoogleMapsPlaces(
   fileContent: string,
@@ -30,19 +31,10 @@ export async function importGoogleMapsPlaces(
     return {
       imported: 0,
       duplicates: 0,
-      skipped: 0,
+      withoutCoordinates: 0,
+      withoutAiCategory: 0,
+      skippedNoId: 0,
       errors: ["Debes iniciar sesión para importar lugares."],
-    };
-  }
-
-  if (!process.env.GOOGLE_PLACES_API_KEY) {
-    return {
-      imported: 0,
-      duplicates: 0,
-      skipped: 0,
-      errors: [
-        "Falta GOOGLE_PLACES_API_KEY. Habilita Places API en Google Cloud y agrega la key en Railway.",
-      ],
     };
   }
 
@@ -51,7 +43,9 @@ export async function importGoogleMapsPlaces(
     return {
       imported: 0,
       duplicates: 0,
-      skipped: 0,
+      withoutCoordinates: 0,
+      withoutAiCategory: 0,
+      skippedNoId: 0,
       errors: ["No se encontraron lugares válidos en el archivo."],
     };
   }
@@ -71,7 +65,9 @@ export async function importGoogleMapsPlaces(
     return {
       imported: 0,
       duplicates: 0,
-      skipped: withoutFeatureId.length,
+      withoutCoordinates: 0,
+      withoutAiCategory: 0,
+      skippedNoId: withoutFeatureId.length,
       errors: [`Error al leer lugares existentes: ${fetchError.message}`],
     };
   }
@@ -81,63 +77,53 @@ export async function importGoogleMapsPlaces(
     (existingRows ?? []) as PlaceRow[],
   );
 
-  const enrichedPlaces: ParsedGooglePlace[] = [];
-  let skippedResolution = 0;
-  const resolutionErrors: string[] = [];
-
-  for (const place of toInsert) {
-    const featureId = place.google_place_id;
-    if (!featureId) {
-      skippedResolution += 1;
-      continue;
-    }
-
-    try {
-      const resolved = await resolvePlaceByFeatureId(featureId);
-
-      if (!resolved) {
-        skippedResolution += 1;
-        resolutionErrors.push(
-          `No se pudo resolver coordenadas para "${place.name}" (${place.google_place_id}).`,
-        );
-        await delay(PLACES_API_DELAY_MS);
-        continue;
-      }
-
-      enrichedPlaces.push({
-        ...place,
-        latitude: resolved.latitude,
-        longitude: resolved.longitude,
-        address: resolved.address,
-        category: resolved.category,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Error desconocido en Places API.";
-      return {
-        imported: 0,
-        duplicates: duplicates.length,
-        skipped: withoutFeatureId.length + skippedResolution,
-        errors: [message],
-      };
-    }
-
-    await delay(PLACES_API_DELAY_MS);
-  }
-
-  if (enrichedPlaces.length === 0) {
+  if (toInsert.length === 0) {
     return {
       imported: 0,
       duplicates: duplicates.length,
-      skipped: withoutFeatureId.length + skippedResolution,
-      errors:
-        resolutionErrors.length > 0
-          ? resolutionErrors.slice(0, 5)
-          : ["No hubo lugares nuevos para importar."],
+      withoutCoordinates: 0,
+      withoutAiCategory: 0,
+      skippedNoId: withoutFeatureId.length,
+      errors: [],
     };
   }
 
-  const rowsToInsert = enrichedPlaces.map((place) => ({
+  const geocodedPlaces: ParsedGooglePlace[] = [];
+  let withoutCoordinates = 0;
+
+  for (const place of toInsert) {
+    const geocoded = await geocodePlaceInChicago(place.name);
+    const hasCoordinates =
+      geocoded.latitude != null && geocoded.longitude != null;
+
+    if (!hasCoordinates) {
+      withoutCoordinates += 1;
+    }
+
+    geocodedPlaces.push({
+      ...place,
+      latitude: geocoded.latitude,
+      longitude: geocoded.longitude,
+      address: geocoded.address ?? place.address,
+    });
+
+    await delay(NOMINATIM_DELAY_MS);
+  }
+
+  let withoutAiCategory = 0;
+  const aiEnrichment = await enrichPlacesWithAI(
+    geocodedPlaces.map((place) => ({ name: place.name })),
+  );
+
+  for (const place of geocodedPlaces) {
+    const enrichment = aiEnrichment.get(place.name);
+    const { withoutCategory } = applyAIEnrichment(place, enrichment);
+    if (withoutCategory) {
+      withoutAiCategory += 1;
+    }
+  }
+
+  const rowsToInsert = geocodedPlaces.map((place) => ({
     trip_id: CHICAGO_TRIP_ID,
     name: place.name,
     latitude: place.latitude,
@@ -147,6 +133,7 @@ export async function importGoogleMapsPlaces(
     maps_url: place.maps_url,
     notes: place.notes,
     category: place.category,
+    estimated_duration_minutes: place.estimated_duration_minutes,
     status: PLACE_STATUS_UNPLANNED,
   }));
 
@@ -156,24 +143,26 @@ export async function importGoogleMapsPlaces(
     return {
       imported: 0,
       duplicates: duplicates.length,
-      skipped: withoutFeatureId.length + skippedResolution,
+      withoutCoordinates,
+      withoutAiCategory,
+      skippedNoId: withoutFeatureId.length,
       errors: [`Error al insertar lugares: ${insertError.message}`],
     };
   }
 
-  const errors = [
-    ...resolutionErrors.slice(0, 3),
-    ...(withoutFeatureId.length > 0
-      ? [
-          `${withoutFeatureId.length} fila(s) omitida(s) sin identificador !1s en la URL.`,
-        ]
-      : []),
-  ];
+  const errors: string[] = [];
+  if (withoutFeatureId.length > 0) {
+    errors.push(
+      `${withoutFeatureId.length} fila(s) omitida(s) sin identificador !1s en la URL.`,
+    );
+  }
 
   return {
-    imported: enrichedPlaces.length,
+    imported: geocodedPlaces.length,
     duplicates: duplicates.length,
-    skipped: withoutFeatureId.length + skippedResolution,
+    withoutCoordinates,
+    withoutAiCategory,
+    skippedNoId: withoutFeatureId.length,
     errors,
   };
 }
@@ -182,4 +171,85 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+/**
+ * Pipeline sin autenticación ni Supabase — útil para probar CSV + geocoding + IA.
+ */
+export async function runImportPipelineDryRun(
+  fileContent: string,
+  filename?: string,
+  existingIds: string[] = [],
+): Promise<ImportPlacesResult> {
+  const parsed = parseGoogleMapsExport(fileContent, filename);
+  const withoutFeatureId = parsed.filter((place) => !place.google_place_id);
+  const withFeatureId = parsed.filter(
+    (place): place is ParsedGooglePlace & { google_place_id: string } =>
+      Boolean(place.google_place_id),
+  );
+
+  const existing = existingIds.map((google_place_id, index) => ({
+    id: String(index),
+    google_place_id,
+  }));
+
+  const { toInsert, duplicates } = partitionPlacesByDuplicates(
+    withFeatureId,
+    existing,
+  );
+
+  if (toInsert.length === 0) {
+    return {
+      imported: 0,
+      duplicates: duplicates.length,
+      withoutCoordinates: 0,
+      withoutAiCategory: 0,
+      skippedNoId: withoutFeatureId.length,
+      errors: [],
+    };
+  }
+
+  const geocodedPlaces: ParsedGooglePlace[] = [];
+  let withoutCoordinates = 0;
+
+  for (const place of toInsert) {
+    const geocoded = await geocodePlaceInChicago(place.name);
+    const hasCoordinates =
+      geocoded.latitude != null && geocoded.longitude != null;
+
+    if (!hasCoordinates) {
+      withoutCoordinates += 1;
+    }
+
+    geocodedPlaces.push({
+      ...place,
+      latitude: geocoded.latitude,
+      longitude: geocoded.longitude,
+      address: geocoded.address ?? place.address,
+    });
+
+    await delay(NOMINATIM_DELAY_MS);
+  }
+
+  let withoutAiCategory = 0;
+  const aiEnrichment = await enrichPlacesWithAI(
+    geocodedPlaces.map((place) => ({ name: place.name })),
+  );
+
+  for (const place of geocodedPlaces) {
+    const enrichment = aiEnrichment.get(place.name);
+    const { withoutCategory } = applyAIEnrichment(place, enrichment);
+    if (withoutCategory) {
+      withoutAiCategory += 1;
+    }
+  }
+
+  return {
+    imported: geocodedPlaces.length,
+    duplicates: duplicates.length,
+    withoutCoordinates,
+    withoutAiCategory,
+    skippedNoId: withoutFeatureId.length,
+    errors: [],
+  };
 }
