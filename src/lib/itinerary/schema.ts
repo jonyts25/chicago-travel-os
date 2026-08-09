@@ -18,6 +18,7 @@ export type ItineraryItem = {
   itinerary_day_id: string;
   place_id: string;
   order_index: number;
+  is_fixed: boolean | null;
 };
 
 export type ItineraryItemInsert = Pick<
@@ -35,6 +36,7 @@ export type PlanningPlace = {
 export type PlanningDayItem = {
   id: string;
   order_index: number;
+  is_fixed: boolean;
   place: PlanningPlace;
 };
 
@@ -48,4 +50,5 @@ export type PlanningDay = {
 export type PlanningBoardData = {
   days: PlanningDay[];
   unplannedPlaces: PlanningPlace[];
+  unlocatedPlaces: PlanningPlace[];
 };

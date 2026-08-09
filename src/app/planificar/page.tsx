@@ -53,7 +53,11 @@ export default async function PlanificarPage() {
           <p className="mt-2 text-sm text-red-200">{error}</p>
         </section>
       ) : data ? (
-        <PlanningBoard days={data.days} unplannedPlaces={data.unplannedPlaces} />
+        <PlanningBoard
+          days={data.days}
+          unplannedPlaces={data.unplannedPlaces}
+          unlocatedPlaces={data.unlocatedPlaces}
+        />
       ) : null}
     </div>
   );

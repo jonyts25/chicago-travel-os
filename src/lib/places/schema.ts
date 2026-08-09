@@ -11,7 +11,7 @@ export type Place = {
   address: string | null;
   google_place_id: string | null;
   maps_url: string | null;
-  priority: number | null;
+  priority: string | null;
   interest: string | null;
   status: string;
   duration_minutes: number | null;

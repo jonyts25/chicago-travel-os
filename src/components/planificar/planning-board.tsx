@@ -4,20 +4,30 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   assignPlaceToDayAction,
+  generateItineraryAction,
   moveItineraryItemAction,
+  regenerateDayItineraryAction,
   removePlaceFromDayAction,
 } from "@/app/planificar/actions";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
+import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 
 type PlanningBoardProps = PlanningBoardData;
 
-export function PlanningBoard({ days, unplannedPlaces }: PlanningBoardProps) {
+export function PlanningBoard({
+  days,
+  unplannedPlaces,
+  unlocatedPlaces,
+}: PlanningBoardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeDayNumber, setActiveDayNumber] = useState(days[0]?.day_number ?? 1);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [optimizerSummary, setOptimizerSummary] = useState<OptimizerSummary | null>(
+    null,
+  );
 
   const categories = useMemo(() => {
     const values = new Set<string>();
@@ -50,6 +60,20 @@ export function PlanningBoard({ days, unplannedPlaces }: PlanningBoardProps) {
     });
   }
 
+  function runOptimizer(action: () => Promise<OptimizerSummary>) {
+    setActionError(null);
+    setOptimizerSummary(null);
+    startTransition(async () => {
+      const result = await action();
+      setOptimizerSummary(result);
+      if (!result.ok) {
+        setActionError(result.error ?? "No se pudo generar el itinerario.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {actionError ? (
@@ -59,11 +83,61 @@ export function PlanningBoard({ days, unplannedPlaces }: PlanningBoardProps) {
       ) : null}
 
       <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-medium text-white">Optimizador</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Distribuye lugares sin planear con coordenadas entre los 4 días (~8 h
+              activas/día + 20 min de traslado entre paradas).
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => runOptimizer(() => generateItineraryAction())}
+            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPending ? "Generando..." : "Generar itinerario"}
+          </button>
+        </div>
+
+        {optimizerSummary ? (
+          <OptimizerSummaryPanel summary={optimizerSummary} />
+        ) : null}
+      </section>
+
+      {unlocatedPlaces.length > 0 ? (
+        <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-5">
+          <h2 className="text-lg font-medium text-amber-100">
+            No se pudieron ubicar ({unlocatedPlaces.length})
+          </h2>
+          <p className="mt-1 text-sm text-amber-100/80">
+            Lugares sin coordenadas — quedan fuera del optimizador. Agrégalos manualmente
+            o corrige sus coordenadas.
+          </p>
+          <ul className="mt-4 flex flex-col gap-2">
+            {unlocatedPlaces.map((place) => (
+              <li
+                key={place.id}
+                className="rounded-lg border border-amber-500/20 bg-slate-950/40 px-3 py-2 text-sm text-amber-50"
+              >
+                {place.name}
+                <span className="text-amber-100/70">
+                  {" "}
+                  · {formatCategory(place.category)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-medium text-white">Sin planear</h2>
             <p className="mt-1 text-sm text-slate-400">
-              {unplannedPlaces.length} lugar(es) disponibles
+              {unplannedPlaces.length} lugar(es) con coordenadas disponibles
             </p>
           </div>
 
@@ -146,9 +220,70 @@ export function PlanningBoard({ days, unplannedPlaces }: PlanningBoardProps) {
             onRemove={(itemId) =>
               runAction(() => removePlaceFromDayAction(itemId))
             }
+            onRegenerateDay={() =>
+              runOptimizer(() => regenerateDayItineraryAction(activeDay.id))
+            }
           />
         ) : null}
       </section>
+    </div>
+  );
+}
+
+function OptimizerSummaryPanel({ summary }: { summary: OptimizerSummary }) {
+  const totalAssigned = summary.assignedByDay.reduce(
+    (sum, day) => sum + day.count,
+    0,
+  );
+
+  return (
+    <div
+      className={`mt-4 rounded-xl border p-4 ${
+        summary.ok
+          ? "border-emerald-500/30 bg-emerald-950/20"
+          : "border-red-500/30 bg-red-950/20"
+      }`}
+    >
+      <h3
+        className={`text-sm font-semibold ${
+          summary.ok ? "text-emerald-100" : "text-red-100"
+        }`}
+      >
+        {summary.ok ? "Itinerario generado" : "Error al generar"}
+      </h3>
+
+      {summary.ok ? (
+        <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-slate-400">Asignados en total</dt>
+            <dd className="font-medium text-white">{totalAssigned}</dd>
+          </div>
+          {summary.assignedByDay.map((day) => (
+            <div key={day.dayNumber}>
+              <dt className="text-slate-400">Día {day.dayNumber}</dt>
+              <dd className="font-medium text-white">{day.count} lugar(es)</dd>
+            </div>
+          ))}
+          <div>
+            <dt className="text-slate-400">Sin asignar (tiempo)</dt>
+            <dd className="font-medium text-white">{summary.unassignedDueToTime}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-400">Sin coordenadas</dt>
+            <dd className="font-medium text-white">{summary.withoutCoordinates}</dd>
+          </div>
+        </dl>
+      ) : null}
+
+      {summary.warnings.length > 0 ? (
+        <ul className="mt-3 space-y-1">
+          {summary.warnings.map((warning) => (
+            <li key={warning} className="text-sm text-amber-100">
+              {warning}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -209,12 +344,14 @@ function DayPlanPanel({
   onMoveUp,
   onMoveDown,
   onRemove,
+  onRegenerateDay,
 }: {
   day: PlanningDay;
   disabled: boolean;
   onMoveUp: (itemId: string) => void;
   onMoveDown: (itemId: string) => void;
   onRemove: (itemId: string) => void;
+  onRegenerateDay: () => void;
 }) {
   const totalMinutes = day.items.reduce(
     (sum, item) => sum + (item.place.duration_minutes ?? 0),
@@ -223,11 +360,21 @@ function DayPlanPanel({
 
   return (
     <div className="mt-4">
-      <p className="text-sm text-slate-400">
-        Día {day.day_number}
-        {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
-        {formatDurationMinutes(totalMinutes)}
-      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-400">
+          Día {day.day_number}
+          {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
+          {formatDurationMinutes(totalMinutes)}
+        </p>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onRegenerateDay}
+          className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Regenerar solo este día
+        </button>
+      </div>
 
       {day.items.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">
@@ -244,6 +391,7 @@ function DayPlanPanel({
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     #{index + 1}
+                    {item.is_fixed ? " · Fijado" : ""}
                   </p>
                   <p className="mt-1 font-medium text-white">{item.place.name}</p>
                   <p className="mt-1 text-sm text-slate-400">
@@ -252,32 +400,38 @@ function DayPlanPanel({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={disabled || index === 0}
-                    onClick={() => onMoveUp(item.id)}
-                    className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Subir
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled || index === day.items.length - 1}
-                    onClick={() => onMoveDown(item.id)}
-                    className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Bajar
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onRemove(item.id)}
-                    className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Quitar
-                  </button>
-                </div>
+                {item.is_fixed ? (
+                  <p className="text-xs text-slate-500">
+                    No editable — reservado/fijado
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={disabled || index === 0}
+                      onClick={() => onMoveUp(item.id)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Subir
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled || index === day.items.length - 1}
+                      onClick={() => onMoveDown(item.id)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Bajar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onRemove(item.id)}
+                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
               </div>
             </li>
           ))}
