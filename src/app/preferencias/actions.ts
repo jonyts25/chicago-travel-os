@@ -52,21 +52,18 @@ export async function updateUserPreferencesAction(
 
   const { data, error } = await supabase
     .from("users")
-    .upsert(
-      {
-        id: user.id,
-        preferences: normalized,
-      },
-      { onConflict: "id" },
-    )
+    .update({
+      preferences: normalized,
+    })
+    .eq("id", user.id)
     .select("id")
     .single();
 
   const mutation = interpretMutationResult(data, error, {
     table: "users",
-    action: "upsert",
+    action: "update",
     permissionHint:
-      "Tu fila en users necesita políticas RLS de SELECT, INSERT y UPDATE para auth.uid() = id.",
+      "Tu fila en users necesita políticas RLS de SELECT y UPDATE para auth.uid() = id.",
   });
 
   if (!mutation.ok) {
