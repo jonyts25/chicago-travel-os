@@ -8,6 +8,7 @@ import {
   retryPlaceGeocodingAction,
   updatePlaceAction,
 } from "@/app/planificar/place-actions";
+import { PlaceDocumentsSection } from "@/components/planificar/place-documents-section";
 import {
   PLACE_CATEGORIES,
   PLACE_INTERESTS,
@@ -327,6 +328,8 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 className={inputClassName}
               />
             </Field>
+
+            <PlaceDocumentsSection placeId={place.id} />
 
             <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
               <label className="flex items-center gap-2 text-sm font-medium text-slate-200">
