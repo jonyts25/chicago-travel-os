@@ -6,6 +6,7 @@ import {
   loadTodayDayAction,
   updateTodayBlockStatusAction,
 } from "@/app/hoy/actions";
+import { ArrivalBanner } from "@/components/hoy/arrival-banner";
 import {
   getStoredActiveDay,
   setStoredActiveDay,
@@ -23,6 +24,7 @@ import {
   type TodayDayData,
   type TodayPageContext,
 } from "@/lib/hoy/today-types";
+import { useArrivalGeolocation } from "@/lib/hoy/use-arrival-geolocation";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory } from "@/lib/planning/format";
 import { TRIP_DAY_COUNT } from "@/lib/constants";
@@ -43,6 +45,7 @@ export function TodayView({ context }: TodayViewProps) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showDaySummary, setShowDaySummary] = useState(false);
+  const [dismissedArrivalBlockId, setDismissedArrivalBlockId] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [isLoadingDay, startLoadDay] = useTransition();
   const [isUpdating, startUpdate] = useTransition();
@@ -86,6 +89,27 @@ export function TodayView({ context }: TodayViewProps) {
   const upcomingBlocks = pendingBlocks.slice(1);
   const isDayComplete = dayData != null && pendingBlocks.length === 0 && dayData.blocks.length > 0;
   const isDayEmpty = dayData != null && dayData.blocks.length === 0;
+
+  const {
+    permission: geoPermission,
+    distanceMeters,
+    isNearby,
+    isSimulated,
+    errorMessage: geoErrorMessage,
+  } = useArrivalGeolocation({
+    targetLat: nextBlock?.place.lat ?? null,
+    targetLng: nextBlock?.place.lng ?? null,
+    enabled: nextBlock != null && !isDayComplete,
+  });
+
+  useEffect(() => {
+    setDismissedArrivalBlockId(null);
+  }, [nextBlock?.id]);
+
+  const showArrivalBanner =
+    nextBlock != null &&
+    isNearby &&
+    dismissedArrivalBlockId !== nextBlock.id;
 
   const handleSelectDay = (dayNumber: number) => {
     setShowDaySummary(false);
@@ -188,6 +212,41 @@ export function TodayView({ context }: TodayViewProps) {
             Ir a planificar
           </Link>
         </section>
+      ) : null}
+
+      {nextBlock && geoPermission === "denied" ? (
+        <p className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">
+          Ubicación desactivada — el modo hoy funciona igual, pero no podremos sugerirte cuándo
+          llegaste a un lugar.
+        </p>
+      ) : null}
+
+      {nextBlock && geoPermission === "unsupported" ? (
+        <p className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">
+          Este navegador no ofrece geolocalización. Usa los botones Hecho / Saltar manualmente.
+        </p>
+      ) : null}
+
+      {nextBlock && geoErrorMessage ? (
+        <p className="rounded-xl border border-amber-500/20 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90">
+          {geoErrorMessage}
+        </p>
+      ) : null}
+
+      {nextBlock && isSimulated && distanceMeters != null ? (
+        <p className="rounded-xl border border-blue-500/20 bg-blue-950/20 px-4 py-3 text-xs text-blue-200/90">
+          Modo simulación activo — distancia al bloque: {distanceMeters} m
+          {isNearby ? " (dentro del radio de llegada)" : ""}.
+        </p>
+      ) : null}
+
+      {showArrivalBanner ? (
+        <ArrivalBanner
+          placeName={nextBlock.place.name}
+          disabled={isUpdating}
+          onConfirm={() => handleStatusUpdate(nextBlock.id, ITINERARY_ITEM_STATUS_DONE)}
+          onDismiss={() => setDismissedArrivalBlockId(nextBlock.id)}
+        />
       ) : null}
 
       {isDayComplete ? (
