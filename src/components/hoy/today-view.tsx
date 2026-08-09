@@ -17,6 +17,7 @@ import {
   getStoredActiveDay,
   setStoredActiveDay,
 } from "@/lib/hoy/active-day-storage";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import {
   buildAlternativesMapUrl,
   buildMapsNavigationUrl,
@@ -65,7 +66,7 @@ export function TodayView({ tripId, context }: TodayViewProps) {
     if (context.autoDayNumber != null) {
       return context.autoDayNumber;
     }
-    return getStoredActiveDay() ?? 1;
+    return getStoredActiveDay(tripId) ?? 1;
   });
   const [dayData, setDayData] = useState<TodayDayData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,7 +95,7 @@ export function TodayView({ tripId, context }: TodayViewProps) {
 
   useEffect(() => {
     if (isManualDayMode) {
-      setStoredActiveDay(selectedDay);
+      setStoredActiveDay(tripId, selectedDay);
     }
   }, [isManualDayMode, selectedDay]);
 
@@ -242,7 +243,7 @@ export function TodayView({ tripId, context }: TodayViewProps) {
           title="Sin bloques planificados"
           description="Este día no tiene lugares asignados. Arma el itinerario en planificación."
           action={
-            <Link href="/planificar">
+            <Link href={tripPaths(tripId).planificar}>
               <Button>Ir a planificar</Button>
             </Link>
           }

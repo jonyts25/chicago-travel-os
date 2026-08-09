@@ -1,11 +1,13 @@
-import { ACTIVE_DAY_STORAGE_KEY } from "@/lib/hoy/today-types";
+export function getActiveDayStorageKey(tripId: string): string {
+  return `travel-os-active-day:${tripId}`;
+}
 
-export function getStoredActiveDay(): number | null {
+export function getStoredActiveDay(tripId: string): number | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const raw = window.localStorage.getItem(ACTIVE_DAY_STORAGE_KEY);
+  const raw = window.localStorage.getItem(getActiveDayStorageKey(tripId));
   if (!raw) {
     return null;
   }
@@ -18,10 +20,10 @@ export function getStoredActiveDay(): number | null {
   return parsed;
 }
 
-export function setStoredActiveDay(dayNumber: number): void {
+export function setStoredActiveDay(tripId: string, dayNumber: number): void {
   if (typeof window === "undefined") {
     return;
   }
 
-  window.localStorage.setItem(ACTIVE_DAY_STORAGE_KEY, String(dayNumber));
+  window.localStorage.setItem(getActiveDayStorageKey(tripId), String(dayNumber));
 }

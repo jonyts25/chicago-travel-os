@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
@@ -23,10 +24,12 @@ type UnplannedPlacesBoardProps = Pick<
   "days" | "unplannedPlaces" | "unlocatedPlaces"
 > & {
   tripId: string;
+  mode?: "scheduled" | "ongoing";
 };
 
 export function UnplannedPlacesBoard({
   tripId,
+  mode = "scheduled",
   days,
   unplannedPlaces,
   unlocatedPlaces,
@@ -87,11 +90,15 @@ export function UnplannedPlacesBoard({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/planificar">
-          <Button type="button" variant="secondary">
-            Volver al itinerario
-          </Button>
-        </Link>
+        {mode === "scheduled" ? (
+          <Link href={tripPaths(tripId).planificar}>
+            <Button type="button" variant="secondary">
+              Volver al itinerario
+            </Button>
+          </Link>
+        ) : (
+          <div />
+        )}
         <Button type="button" variant="secondary" disabled={isPending} onClick={refreshPlaces}>
           Refrescar
         </Button>
@@ -174,7 +181,7 @@ export function UnplannedPlacesBoard({
                 key={place.id}
                 place={place}
                 days={days}
-                disabled={isPending || placePool === "unlocated"}
+                disabled={isPending || placePool === "unlocated" || days.length === 0}
                 onOpen={() => setSelectedPlaceId(place.id)}
                 onAssign={(dayId) => runAssign(place.id, dayId)}
               />
@@ -279,7 +286,7 @@ function UnplannedPlaceCard({
           </label>
           <Button
             type="button"
-            disabled={disabled || !selectedDayId}
+            disabled={disabled || !selectedDayId || days.length === 0}
             loading={disabled}
             onClick={() => onAssign(selectedDayId)}
           >

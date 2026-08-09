@@ -9,6 +9,7 @@ import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import { extractPlaceNameFromMapsUrl } from "@/lib/importers/google-maps";
 import type { AddPlaceResult } from "@/lib/importers/types";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory } from "@/lib/planning/format";
 import { inputs, typography } from "@/lib/ui/styles";
 
@@ -149,7 +150,7 @@ export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps)
               </dl>
               <p className={`${typography.secondary} mt-4`}>
                 Quedó en Sin planear. Asígnalo en{" "}
-                <Link href="/planificar" className="text-blue-400 hover:text-blue-300">
+                <Link href={tripPaths(tripId).planificar} className="text-blue-400 hover:text-blue-300">
                   Planificar
                 </Link>
                 .

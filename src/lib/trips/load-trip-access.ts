@@ -1,10 +1,17 @@
 import { assertTripMember } from "@/lib/supabase/mutation-result";
+import { tripDefaultPath } from "@/lib/trips/trip-paths";
 import {
+  isScheduledTrip,
   normalizeTripType,
+  TRIP_TYPE_ONGOING,
+  TRIP_TYPE_SCHEDULED,
   type TripContext,
   type TripSummary,
+  type TripType,
 } from "@/lib/trips/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
 const TRIP_ACCESS_SELECT = "id, name, trip_type, start_date, end_date, timezone, base_location";
 
@@ -89,4 +96,38 @@ function normalizeTripJoin(
     end_date: row.end_date ?? null,
     timezone: row.timezone ?? "America/Chicago",
   };
+}
+
+export async function requireScheduledTrip(tripId: string): Promise<TripContext> {
+  const trip = await loadTripContextForRoute(tripId);
+  if (!isScheduledTrip(trip.trip_type)) {
+    redirect(tripDefaultPath(tripId, trip.trip_type));
+  }
+  return trip;
+}
+
+export async function requireOngoingTrip(tripId: string): Promise<TripContext> {
+  const trip = await loadTripContextForRoute(tripId);
+  if (trip.trip_type !== TRIP_TYPE_ONGOING) {
+    redirect(tripDefaultPath(tripId, trip.trip_type));
+  }
+  return trip;
+}
+
+async function loadTripContextForRoute(tripId: string): Promise<TripContext> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect(`/login?next=${encodeURIComponent(tripDefaultPath(tripId, TRIP_TYPE_SCHEDULED))}`);
+  }
+
+  const tripResult = await loadTripContext(supabase, tripId, user.id);
+  if (!tripResult.ok) {
+    redirect("/");
+  }
+
+  return tripResult.trip;
 }

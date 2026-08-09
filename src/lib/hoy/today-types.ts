@@ -12,8 +12,6 @@ export type ItineraryItemStatus =
   | typeof ITINERARY_ITEM_STATUS_DONE
   | typeof ITINERARY_ITEM_STATUS_SKIPPED;
 
-export const ACTIVE_DAY_STORAGE_KEY = "chicago-travel-active-day";
-
 export type TodayPlace = {
   id: string;
   name: string;

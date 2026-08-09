@@ -31,6 +31,7 @@ import {
   formatFlightDepartureTime,
 } from "@/lib/trips/travel-info";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
@@ -113,7 +114,7 @@ export function PlanningBoard({
       ) : null}
 
       <div className="flex justify-end">
-        <Link href="/planificar/lugares">
+        <Link href={tripPaths(tripId).planificarLugares}>
           <Button type="button" variant="secondary">
             Agregar lugares
           </Button>

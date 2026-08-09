@@ -11,7 +11,7 @@ type LoginPageProps = {
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
-  const nextPath = params.next ?? "/hoy";
+  const nextPath = params.next ?? "/";
 
   return (
     <PageContainer className="flex items-center justify-center py-12">

@@ -53,8 +53,10 @@ export async function createTripForUser(
     return tripMutation;
   }
 
+  const tripId = tripMutation.data.id;
+
   const { error: memberError } = await supabase.from("trip_members").insert({
-    trip_id: trip.id,
+    trip_id: tripId,
     user_id: userId,
   });
 
@@ -64,7 +66,7 @@ export async function createTripForUser(
 
   if (input.tripType === TRIP_TYPE_SCHEDULED) {
     const dayRows = Array.from({ length: TRIP_DAY_COUNT }, (_, index) => ({
-      trip_id: trip.id,
+      trip_id: tripId,
       day_number: index + 1,
       date: null,
     }));
@@ -75,7 +77,7 @@ export async function createTripForUser(
     }
   }
 
-  return { ok: true, tripId: trip.id };
+  return { ok: true, tripId };
 }
 
 export function normalizeCreateTripType(value: FormDataEntryValue | null): TripType {
