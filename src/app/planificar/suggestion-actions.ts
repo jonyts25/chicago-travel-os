@@ -3,6 +3,7 @@
 import { generatePlaceSuggestions, type PlaceSuggestion } from "@/lib/ai/suggest-places";
 import { addPlacesFromNames } from "@/lib/places/import-places";
 import { loadSuggestionContext } from "@/lib/users/load-suggestion-context";
+import { buildSuggestionLocationParts } from "@/lib/users/suggestion-location";
 import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
@@ -11,7 +12,8 @@ export async function suggestPlacesAction(tripId: string): Promise<
       ok: true;
       suggestions: PlaceSuggestion[];
       contextSummary: {
-        baseLocation: string | null;
+        locationLabel: "zona" | "hotel/base";
+        locationValue: string;
         travelerCount: number;
         existingPlaceCount: number;
       };
@@ -30,11 +32,14 @@ export async function suggestPlacesAction(tripId: string): Promise<
     return { ok: false, error: aiError };
   }
 
+  const location = buildSuggestionLocationParts(context);
+
   return {
     ok: true,
     suggestions,
     contextSummary: {
-      baseLocation: context.baseLocation,
+      locationLabel: location.summaryLabel,
+      locationValue: location.summaryValue,
       travelerCount: context.travelers.length,
       existingPlaceCount: context.existingPlaceNames.length,
     },

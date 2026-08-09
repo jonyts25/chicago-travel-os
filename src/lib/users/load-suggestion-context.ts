@@ -1,4 +1,5 @@
 import type { SuggestionContext, TripTravelerPreferences, UserProfile } from "@/lib/users/schema";
+import { normalizeTripType } from "@/lib/trips/types";
 import { createClient } from "@/lib/supabase/server";
 
 type TripMemberRow = {
@@ -47,7 +48,7 @@ export async function loadSuggestionContext(tripId: string): Promise<{
     await Promise.all([
       supabase
         .from("trips")
-        .select("base_location")
+        .select("name, trip_type, base_location, center_lat, center_lng")
         .eq("id", tripId)
         .maybeSingle(),
       supabase
@@ -92,7 +93,17 @@ export async function loadSuggestionContext(tripId: string): Promise<{
 
   return {
     context: {
+      tripType: normalizeTripType(trip?.trip_type),
+      tripName: trip?.name?.trim() || "Viaje",
       baseLocation: trip?.base_location?.trim() || null,
+      centerLat:
+        trip?.center_lat != null && Number.isFinite(trip.center_lat)
+          ? trip.center_lat
+          : null,
+      centerLng:
+        trip?.center_lng != null && Number.isFinite(trip.center_lng)
+          ? trip.center_lng
+          : null,
       travelers,
       existingPlaceNames: (places ?? []).map((place) => place.name),
     },

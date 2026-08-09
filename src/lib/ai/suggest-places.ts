@@ -1,13 +1,19 @@
 import { callAI, isAnthropicConfigured } from "@/lib/ai/call-ai";
 import type { SuggestionContext } from "@/lib/users/schema";
+import {
+  buildSuggestionLocationParts,
+  isOngoingSuggestionContext,
+} from "@/lib/users/suggestion-location";
 
 export type PlaceSuggestion = {
   name: string;
   reason: string;
 };
 
-function buildSuggestionSystemPrompt(tripCity: string | null): string {
-  const destination = tripCity?.trim() || "el destino del viaje activo";
+function buildSuggestionSystemPrompt(destination: string, isOngoing: boolean): string {
+  const proximityRule = isOngoing
+    ? "Prioriza opciones razonablemente cercanas a la zona de referencia del viaje si se indica."
+    : "Prioriza opciones razonablemente cercanas al hotel/base si se indica.";
 
   return `Eres un asistente de viajes para ${destination}.
 Responde SOLO con JSON válido, sin markdown ni texto extra.
@@ -18,7 +24,7 @@ Devuelve un array JSON de 5 a 8 objetos con:
 Reglas:
 - Solo lugares plausibles en ${destination} y sus alrededores cercanos.
 - No repitas lugares que ya estén en la lista existente del usuario.
-- Prioriza opciones razonablemente cercanas al hotel/base si se indica.
+- ${proximityRule}
 - Evita cadenas genéricas sin ancla local cuando haya alternativas mejores.
 - Los nombres deben ser buscables en un mapa (nombre oficial o muy conocido).
 - No sugieras lugares de otras ciudades distintas al destino del viaje.`;
@@ -44,13 +50,14 @@ export async function generatePlaceSuggestions(
       ? context.existingPlaceNames.slice(0, 120).join("\n")
       : "(ninguno todavía)";
 
-  const destination = context.baseLocation?.trim() || "el destino del viaje activo";
+  const location = buildSuggestionLocationParts(context);
+  const isOngoing = isOngoingSuggestionContext(context.tripType);
 
   const userPrompt = [
     "Genera sugerencias de lugares para este viaje.",
     "",
-    `Destino / ciudad del viaje: ${destination}`,
-    `Hotel / base del viaje: ${context.baseLocation || "(no indicado todavía)"}`,
+    `Destino / ciudad del viaje: ${location.destination}`,
+    location.promptLocationLine,
     "",
     "Preferencias de los viajeros:",
     ...travelerLines,
@@ -59,11 +66,11 @@ export async function generatePlaceSuggestions(
     existingLines,
     "",
     "Devuelve entre 5 y 8 sugerencias nuevas en un array JSON.",
-    `Todos los lugares deben estar en ${destination}, no en otras ciudades.`,
+    `Todos los lugares deben estar en ${location.destination}, no en otras ciudades.`,
   ].join("\n");
 
   const { text, error } = await callAI(
-    buildSuggestionSystemPrompt(context.baseLocation),
+    buildSuggestionSystemPrompt(location.destination, isOngoing),
     userPrompt,
   );
 

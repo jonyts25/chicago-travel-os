@@ -1,3 +1,5 @@
+import type { TripType } from "@/lib/trips/types";
+
 export type UserProfile = {
   id: string;
   preferences: string | null;
@@ -12,7 +14,11 @@ export type TripTravelerPreferences = {
 };
 
 export type SuggestionContext = {
+  tripType: TripType;
+  tripName: string;
   baseLocation: string | null;
+  centerLat: number | null;
+  centerLng: number | null;
   travelers: TripTravelerPreferences[];
   existingPlaceNames: string[];
 };

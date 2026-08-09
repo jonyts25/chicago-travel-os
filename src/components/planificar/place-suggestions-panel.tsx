@@ -22,7 +22,8 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [contextSummary, setContextSummary] = useState<{
-    baseLocation: string | null;
+    locationLabel: "zona" | "hotel/base";
+    locationValue: string;
     travelerCount: number;
     existingPlaceCount: number;
   } | null>(null);
@@ -109,7 +110,7 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
   return (
     <Card
       title="Sugerencias con IA"
-      subtitle="Propone lugares según las preferencias de ambos viajeros, el hotel y lo que ya tenéis en la lista. Son ideas generadas por IA — revísalas antes de agregar."
+      subtitle="Propone lugares según las preferencias de ambos viajeros, la zona del viaje y lo que ya tenéis en la lista. Son ideas generadas por IA — revísalas antes de agregar."
     >
       <div className="mt-4 flex justify-end">
         <Button
@@ -130,8 +131,8 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
       {contextSummary ? (
         <p className={cn(typography.muted, "mt-3")}>
           Contexto usado: {contextSummary.travelerCount} viajero(s) ·{" "}
-          {contextSummary.existingPlaceCount} lugar(es) ya en la lista · hotel/base:{" "}
-          {contextSummary.baseLocation || "sin indicar"}
+          {contextSummary.existingPlaceCount} lugar(es) ya en la lista ·{" "}
+          {contextSummary.locationLabel}: {contextSummary.locationValue}
         </p>
       ) : null}
 
