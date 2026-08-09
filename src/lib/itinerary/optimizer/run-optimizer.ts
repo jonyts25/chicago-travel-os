@@ -312,6 +312,7 @@ async function loadOptimizerContext(): Promise<
   }
 
   const tripConstraints: TripDayConstraintsInput = {
+    timezone: tripResult.data?.timezone ?? null,
     flightArrival: tripResult.data?.flight_arrival ?? null,
     flightDeparture: tripResult.data?.flight_departure ?? null,
     airportTransferMinutes: tripResult.data?.airport_transfer_minutes ?? 90,

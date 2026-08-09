@@ -1,5 +1,6 @@
 export type Trip = {
   id: string;
+  timezone: string | null;
   start_date: string | null;
   base_location: string | null;
   flight_arrival: string | null;

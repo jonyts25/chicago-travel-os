@@ -4,7 +4,7 @@ import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { extractTravelConfirmation } from "@/lib/ai/extract-travel-confirmation";
 import type {
   ExtractedTravelConfirmation,
-  TripTravelSettings,
+  TripTravelSettingsUpdate,
 } from "@/lib/trips/travel-info";
 import { assertTripMember, interpretMutationResult } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
@@ -80,7 +80,7 @@ export async function updateUserPreferencesAction(
 }
 
 export async function updateTripSettingsAction(
-  settings: TripTravelSettings,
+  settings: TripTravelSettingsUpdate,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
   const {

@@ -479,10 +479,14 @@ function DayPlanPanel({
             {formatDayStartSourceLabel(day.day_start_source)}) · Hora límite:{" "}
             {formatDayEndMinutes(dayEndMinutes)} ({formatDayEndSourceLabel(day.day_end_source)})
             {day.day_end_source === "flight" && tripSettings.flight_departure
-              ? ` · vuelo ${formatTripDateTime(tripSettings.flight_departure, {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}`
+              ? ` · vuelo ${formatTripDateTime(
+                  tripSettings.flight_departure,
+                  tripSettings.timezone,
+                  {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  },
+                )}`
               : ""}
           </p>
         </div>

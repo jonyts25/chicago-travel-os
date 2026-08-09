@@ -320,7 +320,7 @@ export function TodayView({ context }: TodayViewProps) {
           </p>
           <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className={cn(typography.placeTime, "text-2xl")}>
-              {getCountdownLabel(nextBlock.start_time, now)}
+              {getCountdownLabel(nextBlock.start_time, context.tripSettings.timezone, now)}
             </span>
             {nextBlock.start_time ? (
               <span className={typography.secondary}>

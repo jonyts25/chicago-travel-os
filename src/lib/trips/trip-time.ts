@@ -1,6 +1,6 @@
-export const TRIP_TIMEZONE = "America/Chicago";
+export const DEFAULT_TRIP_TIMEZONE = "America/Chicago";
 
-export type ChicagoDateTimeParts = {
+export type TripDateTimeParts = {
   year: number;
   month: number;
   day: number;
@@ -9,26 +9,43 @@ export type ChicagoDateTimeParts = {
   seconds: number;
 };
 
-const chicagoPartsFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: TRIP_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
+const partsFormatterCache = new Map<string, Intl.DateTimeFormat>();
 
-export function getChicagoDateTimeParts(
+export function resolveTripTimezone(timezone: string | null | undefined): string {
+  const trimmed = timezone?.trim();
+  return trimmed || DEFAULT_TRIP_TIMEZONE;
+}
+
+function getPartsFormatter(timezone?: string | null): Intl.DateTimeFormat {
+  const resolved = resolveTripTimezone(timezone);
+  let formatter = partsFormatterCache.get(resolved);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: resolved,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    partsFormatterCache.set(resolved, formatter);
+  }
+
+  return formatter;
+}
+
+export function getTripDateTimeParts(
   input: Date | string,
-): ChicagoDateTimeParts | null {
+  timezone?: string | null,
+): TripDateTimeParts | null {
   const date = typeof input === "string" ? new Date(input) : input;
   if (Number.isNaN(date.getTime())) {
     return null;
   }
 
-  const parts = chicagoPartsFormatter.formatToParts(date);
+  const parts = getPartsFormatter(timezone).formatToParts(date);
   const read = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value);
 
@@ -53,8 +70,9 @@ export function getChicagoDateTimeParts(
   return { year, month, day, hours, minutes, seconds };
 }
 
-export function formatInChicagoTimeZone(
+export function formatInTripTimeZone(
   input: Date | string,
+  timezone: string | null | undefined,
   options: Intl.DateTimeFormatOptions,
   locale = "es-MX",
 ): string | null {
@@ -64,13 +82,16 @@ export function formatInChicagoTimeZone(
   }
 
   return date.toLocaleString(locale, {
-    timeZone: TRIP_TIMEZONE,
+    timeZone: resolveTripTimezone(timezone),
     ...options,
   });
 }
 
-export function getChicagoClockMinutes(input: Date | string): number | null {
-  const parts = getChicagoDateTimeParts(input);
+export function getTripClockMinutes(
+  input: Date | string,
+  timezone?: string | null,
+): number | null {
+  const parts = getTripDateTimeParts(input, timezone);
   if (!parts) {
     return null;
   }
@@ -78,8 +99,11 @@ export function getChicagoClockMinutes(input: Date | string): number | null {
   return parts.hours * 60 + parts.minutes;
 }
 
-export function getChicagoDateOnlyString(input: Date | string): string | null {
-  const parts = getChicagoDateTimeParts(input);
+export function getTripDateOnlyString(
+  input: Date | string,
+  timezone?: string | null,
+): string | null {
+  const parts = getTripDateTimeParts(input, timezone);
   if (!parts) {
     return null;
   }
@@ -88,16 +112,20 @@ export function getChicagoDateOnlyString(input: Date | string): string | null {
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
 }
 
-export function getChicagoClockMinutesNow(referenceDate: Date = new Date()): number | null {
-  return getChicagoClockMinutes(referenceDate);
+export function getTripClockMinutesNow(
+  timezone?: string | null,
+  referenceDate: Date = new Date(),
+): number | null {
+  return getTripClockMinutes(referenceDate, timezone);
 }
 
-export function chicagoLocalDateTimeToUtcDate(
+export function tripLocalDateTimeToUtcDate(
   year: number,
   month: number,
   day: number,
   hours: number,
   minutes: number,
+  timezone?: string | null,
 ): Date | null {
   if (
     month < 1 ||
@@ -115,7 +143,7 @@ export function chicagoLocalDateTimeToUtcDate(
   let utcMs = Date.UTC(year, month - 1, day, hours, minutes);
 
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const parts = getChicagoDateTimeParts(new Date(utcMs));
+    const parts = getTripDateTimeParts(new Date(utcMs), timezone);
     if (!parts) {
       return null;
     }
@@ -144,12 +172,15 @@ export function chicagoLocalDateTimeToUtcDate(
   return null;
 }
 
-export function isoToChicagoDatetimeLocalValue(iso: string | null | undefined): string {
+export function isoToTripDatetimeLocalValue(
+  iso: string | null | undefined,
+  timezone?: string | null,
+): string {
   if (!iso?.trim()) {
     return "";
   }
 
-  const parts = getChicagoDateTimeParts(iso);
+  const parts = getTripDateTimeParts(iso, timezone);
   if (!parts) {
     return "";
   }
@@ -158,7 +189,10 @@ export function isoToChicagoDatetimeLocalValue(iso: string | null | undefined): 
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hours)}:${pad(parts.minutes)}`;
 }
 
-export function chicagoDatetimeLocalValueToIso(value: string): string | null {
+export function tripDatetimeLocalValueToIso(
+  value: string,
+  timezone?: string | null,
+): string | null {
   const trimmed = value.trim();
   if (!trimmed) {
     return null;
@@ -187,12 +221,12 @@ export function chicagoDatetimeLocalValueToIso(value: string): string | null {
     return null;
   }
 
-  const date = chicagoLocalDateTimeToUtcDate(year, month, day, hours, minutes);
+  const date = tripLocalDateTimeToUtcDate(year, month, day, hours, minutes, timezone);
   if (!date) {
     return null;
   }
 
-  const roundTrip = isoToChicagoDatetimeLocalValue(date.toISOString());
+  const roundTrip = isoToTripDatetimeLocalValue(date.toISOString(), timezone);
   if (roundTrip !== trimmed.slice(0, 16)) {
     return null;
   }

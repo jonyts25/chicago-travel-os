@@ -1,7 +1,11 @@
 import { formatScheduleTime, parseTimeToMinutes } from "@/lib/itinerary/schedule-day";
-import { getChicagoClockMinutesNow } from "@/lib/trips/chicago-time";
+import { getTripClockMinutesNow } from "@/lib/trips/trip-time";
 
-export function getCountdownLabel(startTime: string | null, now: Date = new Date()): string {
+export function getCountdownLabel(
+  startTime: string | null,
+  timezone: string | null | undefined,
+  now: Date = new Date(),
+): string {
   if (!startTime) {
     return "Sin hora estimada";
   }
@@ -11,7 +15,7 @@ export function getCountdownLabel(startTime: string | null, now: Date = new Date
     return formatScheduleTime(startTime);
   }
 
-  const nowMinutes = getChicagoClockMinutesNow(now);
+  const nowMinutes = getTripClockMinutesNow(timezone, now);
   if (nowMinutes == null) {
     return formatScheduleTime(startTime);
   }

@@ -43,6 +43,7 @@ export function TripInfoSummary({
             value={formatFlightLine(
               settings.flight_outbound_number,
               settings.flight_arrival,
+              settings.timezone,
               compact,
             )}
           />
@@ -54,6 +55,7 @@ export function TripInfoSummary({
             value={formatFlightLine(
               settings.flight_return_number,
               settings.flight_departure,
+              settings.timezone,
               compact,
             )}
           />
@@ -62,14 +64,14 @@ export function TripInfoSummary({
         {settings.hotel_checkin ? (
           <InfoRow
             label="Check-in hotel"
-            value={formatTripDateTime(settings.hotel_checkin) ?? "—"}
+            value={formatTripDateTime(settings.hotel_checkin, settings.timezone) ?? "—"}
           />
         ) : null}
 
         {settings.hotel_checkout ? (
           <InfoRow
             label="Check-out hotel"
-            value={formatTripDateTime(settings.hotel_checkout) ?? "—"}
+            value={formatTripDateTime(settings.hotel_checkout, settings.timezone) ?? "—"}
           />
         ) : null}
 
@@ -111,11 +113,12 @@ function InfoRow({
 function formatFlightLine(
   flightNumber: string | null,
   iso: string,
+  timezone: string,
   compact: boolean,
 ): string {
   const time = compact
-    ? formatTripTimeFromIso(iso)
-    : formatTripDateTime(iso);
+    ? formatTripTimeFromIso(iso, timezone)
+    : formatTripDateTime(iso, timezone);
   const number = flightNumber?.trim();
 
   if (number && time) {

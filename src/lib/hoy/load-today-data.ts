@@ -75,18 +75,18 @@ export async function loadTodayPageContext(): Promise<{
     return { context: null, error: daysError };
   }
 
+  const tripSettings = normalizeTripTravelSettings(trip);
   const startDateRaw = (trip as Trip | null)?.start_date ?? null;
   const startDate = startDateRaw
     ? parseDateOnly(startDateRaw)
       ? startDateRaw.trim().match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? startDateRaw
       : null
     : null;
-  const tripPhase = resolveTripTodayPhase(startDate);
+  const tripPhase = resolveTripTodayPhase(startDate, new Date(), tripSettings.timezone);
   const autoDayNumber =
     tripPhase === "during_trip" && startDate
-      ? getTripDayFromStartDate(startDate)
+      ? getTripDayFromStartDate(startDate, new Date(), tripSettings.timezone)
       : null;
-  const tripSettings = normalizeTripTravelSettings(trip);
 
   return {
     context: {

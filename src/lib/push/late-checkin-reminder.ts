@@ -1,11 +1,12 @@
 import { sendWebPushNotification } from "@/lib/push/web-push-server";
 import type { StoredPushSubscription } from "@/lib/push/schema";
-import { getChicagoDateOnlyString } from "@/lib/trips/chicago-time";
+import { getTripDateOnlyString } from "@/lib/trips/trip-time";
 import { parseDateOnly } from "@/lib/trips/trip-calendar";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type TripReminderRow = {
   id: string;
+  timezone: string | null;
   hotel_checkin: string | null;
   late_checkin_confirmed: boolean | null;
 };
@@ -37,7 +38,7 @@ export async function runLateCheckinReminder(options?: {
 
   let query = supabase
     .from("trips")
-    .select("id, hotel_checkin, late_checkin_confirmed")
+    .select("id, timezone, hotel_checkin, late_checkin_confirmed")
     .not("hotel_checkin", "is", null);
 
   if (!force) {
@@ -57,13 +58,14 @@ export async function runLateCheckinReminder(options?: {
     };
   }
 
-  const today = parseChicagoDateOnly(new Date());
   const eligibleTrips = (trips ?? []).filter((trip) => {
     if (force) {
       return true;
     }
 
-    return isOnOrBeforeCheckinDay(today, (trip as TripReminderRow).hotel_checkin);
+    const row = trip as TripReminderRow;
+    const today = parseTripDateOnly(new Date(), row.timezone);
+    return isOnOrBeforeCheckinDay(today, row.hotel_checkin, row.timezone);
   });
 
   if (eligibleTrips.length === 0) {
@@ -150,8 +152,11 @@ export async function runLateCheckinReminder(options?: {
   };
 }
 
-function parseChicagoDateOnly(input: Date | string): Date | null {
-  const dateOnly = getChicagoDateOnlyString(input);
+function parseTripDateOnly(
+  input: Date | string,
+  timezone?: string | null,
+): Date | null {
+  const dateOnly = getTripDateOnlyString(input, timezone);
   if (!dateOnly) {
     return null;
   }
@@ -159,12 +164,16 @@ function parseChicagoDateOnly(input: Date | string): Date | null {
   return parseDateOnly(dateOnly);
 }
 
-function isOnOrBeforeCheckinDay(today: Date | null, hotelCheckinIso: string | null): boolean {
+function isOnOrBeforeCheckinDay(
+  today: Date | null,
+  hotelCheckinIso: string | null,
+  timezone?: string | null,
+): boolean {
   if (!today || !hotelCheckinIso?.trim()) {
     return false;
   }
 
-  const checkinDay = parseChicagoDateOnly(hotelCheckinIso);
+  const checkinDay = parseTripDateOnly(hotelCheckinIso, timezone);
   if (!checkinDay) {
     return false;
   }
