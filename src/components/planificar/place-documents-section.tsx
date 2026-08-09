@@ -7,6 +7,10 @@ import {
   listPlaceDocumentsAction,
   uploadPlaceDocumentAction,
 } from "@/app/planificar/place-document-actions";
+import { Button } from "@/components/ui/button";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   ALLOWED_PLACE_DOCUMENT_EXTENSIONS,
   formatDocumentCreatedAt,
@@ -14,6 +18,7 @@ import {
   validatePlaceDocumentFile,
   type PlaceDocumentListItem,
 } from "@/lib/places/place-documents";
+import { cn, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceDocumentsSectionProps = {
   placeId: string;
@@ -22,6 +27,7 @@ type PlaceDocumentsSectionProps = {
 const ACCEPT_ATTRIBUTE = ALLOWED_PLACE_DOCUMENT_EXTENSIONS.join(",");
 
 export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
+  const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<PlaceDocumentListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +102,8 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
           setDocuments(refreshed.data ?? []);
         }
       }
+
+      showToast("Documento subido.");
     });
   }
 
@@ -128,14 +136,15 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     }
 
     setDocuments((current) => current.filter((document) => document.id !== documentId));
+    showToast("Documento eliminado.");
   }
 
   return (
-    <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <section className={cn(surfaces.inset, "p-4")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-sm font-medium text-slate-200">Documentos</h3>
-          <p className="mt-1 text-xs text-slate-500">
+          <h3 className={typography.body}>Documentos</h3>
+          <p className={cn(typography.muted, "mt-1")}>
             PDF, PNG, JPG o .pkpass · máximo 10 MB
           </p>
         </div>
@@ -147,27 +156,33 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
             className="hidden"
             onChange={handleFileSelected}
           />
-          <button
+          <Button
             type="button"
+            variant="secondary"
             disabled={isUploading}
+            loading={isUploading}
             onClick={handleChooseFile}
-            className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-900 disabled:opacity-60"
           >
-            {isUploading ? "Subiendo..." : "Subir archivo"}
-          </button>
+            Subir archivo
+          </Button>
         </div>
       </div>
 
       {localError ? (
-        <p className="mt-3 rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-          {localError}
-        </p>
+        <ErrorMessage
+          className="mt-3"
+          message="No se pudo completar la operación con documentos."
+          technicalDetails={localError}
+        />
       ) : null}
 
       {loading ? (
-        <p className="mt-4 text-sm text-slate-400">Cargando documentos...</p>
+        <div className="mt-4 space-y-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
       ) : documents.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className={cn(typography.secondary, "mt-4")}>
           Aún no hay tickets ni documentos adjuntos a este lugar.
         </p>
       ) : (
@@ -180,56 +195,57 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
             return (
               <li
                 key={document.id}
-                className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-3"
+                className={cn(surfaces.inset, "bg-slate-950/70 px-3 py-3")}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-100">
+                    <p className={cn(typography.body, "truncate font-medium")}>
                       {document.file_name}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className={cn(typography.muted, "mt-1")}>
                       {formatDocumentCreatedAt(document.created_at)}
                     </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
+                    <Button
                       type="button"
                       disabled={isOpening || isDeleting}
+                      loading={isOpening}
                       onClick={() => handleOpen(document.id)}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60"
                     >
-                      {isOpening ? "Abriendo..." : "Abrir"}
-                    </button>
+                      Abrir
+                    </Button>
 
                     {confirmDelete ? (
                       <>
-                        <button
+                        <Button
                           type="button"
+                          variant="danger"
                           disabled={isDeleting}
+                          loading={isDeleting}
                           onClick={() => handleDelete(document.id)}
-                          className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
                         >
-                          {isDeleting ? "Eliminando..." : "Confirmar"}
-                        </button>
-                        <button
+                          Confirmar
+                        </Button>
+                        <Button
                           type="button"
+                          variant="secondary"
                           disabled={isDeleting}
                           onClick={() => setPendingDeleteId(null)}
-                          className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300"
                         >
                           Cancelar
-                        </button>
+                        </Button>
                       </>
                     ) : (
-                      <button
+                      <Button
                         type="button"
+                        variant="danger"
                         disabled={isOpening || isDeleting}
                         onClick={() => setPendingDeleteId(document.id)}
-                        className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 hover:bg-red-950/40 disabled:opacity-60"
                       >
                         Eliminar
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -239,7 +255,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
         </ul>
       )}
 
-      <p className="mt-3 text-xs text-slate-600">
+      <p className={cn(typography.muted, "mt-3 text-slate-600")}>
         Límite de subida: {Math.round(MAX_PLACE_DOCUMENT_SIZE_BYTES / (1024 * 1024))} MB por archivo.
       </p>
     </section>

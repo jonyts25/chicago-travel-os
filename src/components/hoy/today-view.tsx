@@ -7,6 +7,12 @@ import {
   updateTodayBlockStatusAction,
 } from "@/app/hoy/actions";
 import { ArrivalBanner } from "@/components/hoy/arrival-banner";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { CardSkeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   getStoredActiveDay,
   setStoredActiveDay,
@@ -28,12 +34,14 @@ import { useArrivalGeolocation } from "@/lib/hoy/use-arrival-geolocation";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory } from "@/lib/planning/format";
 import { TRIP_DAY_COUNT } from "@/lib/constants";
+import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
 type TodayViewProps = {
   context: TodayPageContext;
 };
 
 export function TodayView({ context }: TodayViewProps) {
+  const { showToast } = useToast();
   const isManualDayMode = context.autoDayNumber == null;
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     if (context.autoDayNumber != null) {
@@ -139,6 +147,11 @@ export function TodayView({ context }: TodayViewProps) {
         loadDay(activeDay);
         return;
       }
+      showToast(
+        status === ITINERARY_ITEM_STATUS_DONE
+          ? "Bloque marcado como hecho."
+          : "Bloque saltado.",
+      );
       setDayData(result.data);
     });
   };
@@ -152,10 +165,10 @@ export function TodayView({ context }: TodayViewProps) {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+      <Card className="!p-4">
         {isManualDayMode ? (
           <>
-            <p className="text-sm font-medium text-slate-300">Estoy en el</p>
+            <p className={typography.body}>Estoy en el</p>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {Array.from({ length: TRIP_DAY_COUNT }, (_, index) => {
                 const dayNumber = index + 1;
@@ -165,76 +178,70 @@ export function TodayView({ context }: TodayViewProps) {
                     key={dayNumber}
                     type="button"
                     onClick={() => handleSelectDay(dayNumber)}
-                    className={`rounded-xl px-2 py-3 text-base font-semibold transition ${
-                      isActive
-                        ? "bg-emerald-500 text-slate-950"
-                        : "border border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500"
-                    }`}
+                    className={cn(
+                      buttons.base,
+                      "px-2 text-base",
+                      isActive ? buttons.primary : buttons.secondary,
+                    )}
                   >
                     Día {dayNumber}
                   </button>
                 );
               })}
             </div>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className={cn(typography.muted, "mt-3")}>
               Sin fecha de inicio del viaje — recordamos tu selección en este dispositivo.
             </p>
           </>
         ) : (
-          <p className="text-lg font-semibold text-white">
-            Día {activeDay} de {TRIP_DAY_COUNT}
-          </p>
+          <p className={typography.sectionTitle}>Día {activeDay} de {TRIP_DAY_COUNT}</p>
         )}
-      </section>
+      </Card>
 
       {loadError ? (
-        <section className="rounded-2xl border border-red-500/40 bg-red-950/40 p-5">
-          <p className="text-sm text-red-200">{loadError}</p>
-        </section>
+        <ErrorMessage
+          message="No se pudo cargar el día. Intenta de nuevo."
+          technicalDetails={loadError}
+        />
       ) : null}
 
       {isLoadingDay && !dayData ? (
-        <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-8 text-center">
-          <p className="text-base text-slate-400">Cargando el día…</p>
-        </section>
+        <CardSkeleton />
       ) : null}
 
       {isDayEmpty ? (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-6">
-          <h2 className="text-xl font-semibold text-amber-100">Sin bloques planificados</h2>
-          <p className="mt-2 text-sm text-amber-200/90">
-            Este día no tiene lugares asignados. Arma el itinerario en planificación.
-          </p>
-          <Link
-            href="/planificar"
-            className="mt-4 inline-flex rounded-xl bg-amber-500 px-4 py-3 text-sm font-semibold text-slate-950"
-          >
-            Ir a planificar
-          </Link>
-        </section>
+        <EmptyState
+          title="Sin bloques planificados"
+          description="Este día no tiene lugares asignados. Arma el itinerario en planificación."
+          action={
+            <Link href="/planificar">
+              <Button>Ir a planificar</Button>
+            </Link>
+          }
+        />
       ) : null}
 
       {nextBlock && geoPermission === "denied" ? (
-        <p className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">
+        <p className={cn(surfaces.inset, "px-4 py-3", typography.secondary)}>
           Ubicación desactivada — el modo hoy funciona igual, pero no podremos sugerirte cuándo
           llegaste a un lugar.
         </p>
       ) : null}
 
       {nextBlock && geoPermission === "unsupported" ? (
-        <p className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm text-slate-400">
+        <p className={cn(surfaces.inset, "px-4 py-3", typography.secondary)}>
           Este navegador no ofrece geolocalización. Usa los botones Hecho / Saltar manualmente.
         </p>
       ) : null}
 
       {nextBlock && geoErrorMessage ? (
-        <p className="rounded-xl border border-amber-500/20 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90">
-          {geoErrorMessage}
-        </p>
+        <Card tone="warning" className="!py-4">
+          <p className={typography.body}>{geoErrorMessage}</p>
+        </Card>
       ) : null}
 
       {nextBlock && isSimulated && distanceMeters != null ? (
-        <p className="rounded-xl border border-blue-500/20 bg-blue-950/20 px-4 py-3 text-xs text-blue-200/90">
+        <p className={cn(surfaces.inset, "border-blue-500/20 bg-blue-950/20 px-4 py-3", typography.muted, "text-blue-200/90")}>
           Modo simulación activo — distancia al bloque: {distanceMeters} m
           {isNearby ? " (dentro del radio de llegada)" : ""}.
         </p>
@@ -250,59 +257,51 @@ export function TodayView({ context }: TodayViewProps) {
       ) : null}
 
       {isDayComplete ? (
-        <section className="rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-6">
-          <p className="text-sm font-medium uppercase tracking-wide text-emerald-300">
-            Día completado
-          </p>
-          <h2 className="mt-2 text-3xl font-bold text-white">
+        <Card tone="success">
+          <p className={typography.eyebrow}>Día completado</p>
+          <h2 className={cn(typography.pageTitle, "mt-2 text-2xl sm:text-3xl")}>
             ¡Listo el día {activeDay}!
           </h2>
-          <p className="mt-2 text-base text-emerald-100/90">
+          <p className={cn(typography.body, "mt-2")}>
             No quedan bloques pendientes para hoy.
           </p>
           <div className="mt-5 flex flex-col gap-3">
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={() => setShowDaySummary((value) => !value)}
-              className="rounded-xl border border-emerald-400/40 bg-emerald-900/40 px-4 py-3 text-base font-semibold text-emerald-100"
             >
               {showDaySummary ? "Ocultar resumen" : "Ver resumen del día"}
-            </button>
+            </Button>
             {activeDay < TRIP_DAY_COUNT ? (
-              <button
-                type="button"
-                onClick={goToNextDay}
-                className="rounded-xl bg-emerald-500 px-4 py-3 text-base font-semibold text-slate-950"
-              >
+              <Button type="button" onClick={goToNextDay}>
                 Pasar al día {activeDay + 1}
-              </button>
+              </Button>
             ) : null}
           </div>
           {showDaySummary && dayData ? (
             <DaySummaryList blocks={dayData.blocks} className="mt-5" />
           ) : null}
-        </section>
+        </Card>
       ) : null}
 
       {nextBlock ? (
-        <section className="rounded-3xl border border-slate-700 bg-gradient-to-b from-slate-900 to-slate-950 p-5 shadow-lg">
-          <p className="text-sm font-medium uppercase tracking-[0.15em] text-emerald-400">
-            Próximo bloque
-          </p>
-          <p className="mt-3 text-4xl font-bold leading-tight text-white">
+        <section className={cn(surfaces.card, surfaces.cardPadding, "shadow-lg")}>
+          <p className={typography.eyebrow}>Próximo bloque</p>
+          <p className={cn(typography.placeName, "mt-3 text-2xl sm:text-3xl")}>
             {nextBlock.place.name}
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-2xl font-semibold text-emerald-300">
+          <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className={cn(typography.placeTime, "text-2xl")}>
               {getCountdownLabel(nextBlock.start_time, now)}
             </span>
             {nextBlock.start_time ? (
-              <span className="text-lg text-slate-400">
+              <span className={typography.secondary}>
                 · {formatScheduleTime(nextBlock.start_time)}
               </span>
             ) : null}
           </div>
-          <p className="mt-2 text-base text-slate-400">
+          <p className={cn(typography.placeMeta, "mt-2")}>
             {formatCategory(nextBlock.place.category)}
           </p>
 
@@ -310,76 +309,78 @@ export function TodayView({ context }: TodayViewProps) {
             href={buildMapsNavigationUrl(nextBlock.place)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-6 flex w-full items-center justify-center rounded-2xl bg-blue-500 px-4 py-4 text-lg font-semibold text-white transition hover:bg-blue-400"
+            className={cn(buttons.base, buttons.primary, "mt-6 w-full text-base")}
           >
             Navegar
           </a>
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <button
+            <Button
               type="button"
+              variant="success"
               disabled={isUpdating}
+              loading={isUpdating}
               onClick={() => handleStatusUpdate(nextBlock.id, ITINERARY_ITEM_STATUS_DONE)}
-              className="rounded-2xl bg-emerald-600 px-3 py-4 text-base font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
             >
               Hecho
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               disabled={isUpdating}
               onClick={() => handleStatusUpdate(nextBlock.id, ITINERARY_ITEM_STATUS_SKIPPED)}
-              className="rounded-2xl border border-slate-600 bg-slate-900 px-3 py-4 text-base font-semibold text-slate-200 transition hover:border-slate-500 disabled:opacity-60"
             >
               Saltar
-            </button>
+            </Button>
             <Link
               href={buildAlternativesMapUrl(nextBlock.place)}
-              className="flex items-center justify-center rounded-2xl border border-amber-500/50 bg-amber-950/40 px-3 py-4 text-center text-base font-semibold text-amber-100 transition hover:border-amber-400"
+              className={cn(buttons.base, buttons.secondary, "text-center")}
             >
               Alternativa cercana
             </Link>
           </div>
 
           {actionError ? (
-            <p className="mt-3 text-sm text-red-300">{actionError}</p>
+            <ErrorMessage
+              className="mt-3"
+              message="No se pudo actualizar el bloque."
+              technicalDetails={actionError}
+            />
           ) : null}
         </section>
       ) : null}
 
       {nextBlock && upcomingBlocks.length > 0 ? (
-        <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
-            Después en el día
-          </h2>
+        <Card title="Después en el día">
           <ul className="mt-3 max-h-52 space-y-2 overflow-y-auto">
             {upcomingBlocks.map((block) => (
               <li
                 key={block.id}
-                className="flex items-baseline gap-3 rounded-xl border border-slate-800/80 bg-slate-900/60 px-3 py-2.5"
+                className={cn(surfaces.inset, "flex items-baseline gap-3 px-3 py-2.5")}
               >
-                <span className="shrink-0 text-sm font-medium tabular-nums text-slate-400">
+                <span className={cn(typography.placeTime, "shrink-0 text-sm")}>
                   {block.start_time ? formatScheduleTime(block.start_time) : "—"}
                 </span>
-                <span className="truncate text-base text-slate-200">{block.place.name}</span>
+                <span className={cn(typography.body, "truncate")}>{block.place.name}</span>
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       ) : null}
 
       {!isDayComplete && dayData && dayData.blocks.length > 0 ? (
-        <section className="rounded-2xl border border-slate-800/60 bg-slate-950/50 p-4">
+        <Card className="!p-4">
           <button
             type="button"
             onClick={() => setShowDaySummary((value) => !value)}
-            className="text-sm font-medium text-slate-400 underline-offset-2 hover:text-slate-300 hover:underline"
+            className={cn(typography.secondary, "font-medium underline-offset-2 hover:text-slate-300 hover:underline")}
           >
             {showDaySummary ? "Ocultar todo el día" : "Ver todo el día"}
           </button>
           {showDaySummary ? (
             <DaySummaryList blocks={dayData.blocks} className="mt-3" />
           ) : null}
-        </section>
+        </Card>
       ) : null}
     </div>
   );
@@ -397,13 +398,13 @@ function DaySummaryList({
       {blocks.map((block) => (
         <li
           key={block.id}
-          className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2.5"
+          className={cn(surfaces.inset, "flex items-center gap-3 px-3 py-2.5")}
         >
           <StatusBadge status={block.status} />
-          <span className="shrink-0 text-sm tabular-nums text-slate-400">
+          <span className={cn(typography.placeTime, "shrink-0 text-sm")}>
             {block.start_time ? formatScheduleTime(block.start_time) : "—"}
           </span>
-          <span className="truncate text-sm text-slate-200">{block.place.name}</span>
+          <span className={cn(typography.body, "truncate")}>{block.place.name}</span>
         </li>
       ))}
     </ul>

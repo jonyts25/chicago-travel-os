@@ -11,10 +11,16 @@ import {
 } from "@/app/planificar/actions";
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
 import { PlaceSuggestionsPanel } from "@/components/planificar/place-suggestions-panel";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { useToast } from "@/components/ui/toast-provider";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
+import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlanningBoardProps = PlanningBoardData;
 
@@ -24,6 +30,7 @@ export function PlanningBoard({
   unlocatedPlaces,
 }: PlanningBoardProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [activeDayNumber, setActiveDayNumber] = useState(days[0]?.day_number ?? 1);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -52,7 +59,10 @@ export function PlanningBoard({
 
   const activeDay = days.find((day) => day.day_number === activeDayNumber) ?? days[0];
 
-  function runAction(action: () => Promise<{ ok: boolean; error?: string }>) {
+  function runAction(
+    action: () => Promise<{ ok: boolean; error?: string }>,
+    successMessage?: string,
+  ) {
     setActionError(null);
     startTransition(async () => {
       const result = await action();
@@ -60,11 +70,17 @@ export function PlanningBoard({
         setActionError(result.error ?? "No se pudo completar la acción.");
         return;
       }
+      if (successMessage) {
+        showToast(successMessage);
+      }
       router.refresh();
     });
   }
 
-  function runOptimizer(action: () => Promise<OptimizerSummary>) {
+  function runOptimizer(
+    action: () => Promise<OptimizerSummary>,
+    successMessage = "Itinerario generado correctamente.",
+  ) {
     setActionError(null);
     setOptimizerSummary(null);
     startTransition(async () => {
@@ -74,6 +90,7 @@ export function PlanningBoard({
         setActionError(result.error ?? "No se pudo generar el itinerario.");
         return;
       }
+      showToast(successMessage);
       router.refresh();
     });
   }
@@ -87,81 +104,71 @@ export function PlanningBoard({
       />
 
       {actionError ? (
-        <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-          {actionError}
-        </p>
+        <ErrorMessage
+          message="No se pudo completar la acción. Intenta de nuevo."
+          technicalDetails={actionError}
+        />
       ) : null}
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-white">Optimizador</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Distribuye lugares sin planear con coordenadas entre los 4 días (~8 h
-              activas/día + 20 min de traslado entre paradas).
-            </p>
-          </div>
-          <button
+      <Card
+        title="Optimizador"
+        subtitle="Distribuye lugares sin planear con coordenadas entre los 4 días (~8 h activas/día + 20 min de traslado entre paradas)."
+      >
+        <div className="mt-4 flex justify-end">
+          <Button
             type="button"
             disabled={isPending}
+            loading={isPending}
             onClick={() => runOptimizer(() => generateItineraryAction())}
-            className="shrink-0 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isPending ? "Generando..." : "Generar itinerario"}
-          </button>
+            Generar itinerario
+          </Button>
         </div>
 
         {optimizerSummary ? (
           <OptimizerSummaryPanel summary={optimizerSummary} />
         ) : null}
-      </section>
+      </Card>
 
       <PlaceSuggestionsPanel />
 
       {unlocatedPlaces.length > 0 ? (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-5">
-          <h2 className="text-lg font-medium text-amber-100">
-            No se pudieron ubicar ({unlocatedPlaces.length})
-          </h2>
-          <p className="mt-1 text-sm text-amber-100/80">
-            Lugares sin coordenadas — quedan fuera del optimizador. Agrégalos manualmente
-            o corrige sus coordenadas.
-          </p>
+        <Card
+          tone="warning"
+          title={`No se pudieron ubicar (${unlocatedPlaces.length})`}
+          subtitle="Lugares sin coordenadas — quedan fuera del optimizador. Agrégalos manualmente o corrige sus coordenadas."
+        >
           <ul className="mt-4 flex flex-col gap-2">
             {unlocatedPlaces.map((place) => (
               <li
                 key={place.id}
-                className="rounded-lg border border-amber-500/20 bg-slate-950/40 px-3 py-2 text-sm text-amber-50"
+                className={cn(surfaces.inset, "px-3 py-2.5")}
               >
                 <PlaceOpenButton
                   name={place.name}
                   onOpen={() => setSelectedPlaceId(place.id)}
                 />
-                <span className="text-amber-100/70">
+                <span className={typography.placeMeta}>
                   {" "}
                   · {formatCategory(place.category)}
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </Card>
       ) : null}
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-medium text-white">Sin planear</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              {unplannedPlaces.length} lugar(es) con coordenadas disponibles
-            </p>
-          </div>
-
-          <label className="flex flex-col gap-1 text-sm text-slate-300">
+      <Card
+        title="Sin planear"
+        subtitle={`${unplannedPlaces.length} lugar(es) con coordenadas disponibles`}
+      >
+        <div className="mt-4 flex justify-end">
+          <label className={cn(inputs.label, "sm:max-w-xs")}>
             Categoría
             <select
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+              className={inputs.base}
             >
               <option value="all">Todas</option>
               {categories.map((category) => (
@@ -174,10 +181,15 @@ export function PlanningBoard({
         </div>
 
         {filteredUnplanned.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">
-            No hay lugares sin planear
-            {categoryFilter !== "all" ? " en esta categoría" : ""}.
-          </p>
+          <EmptyState
+            className="mt-4"
+            title="Sin lugares sin planear"
+            description={
+              categoryFilter !== "all"
+                ? "No hay lugares sin planear en esta categoría. Prueba otra categoría o importa más lugares."
+                : "Todos los lugares con coordenadas ya están asignados a un día."
+            }
+          />
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
             {filteredUnplanned.map((place) => (
@@ -188,17 +200,18 @@ export function PlanningBoard({
                 disabled={isPending}
                 onOpen={() => setSelectedPlaceId(place.id)}
                 onAssign={(dayId) =>
-                  runAction(() => assignPlaceToDayAction(place.id, dayId))
+                  runAction(
+                    () => assignPlaceToDayAction(place.id, dayId),
+                    "Lugar agregado al día.",
+                  )
                 }
               />
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
-        <h2 className="text-lg font-medium text-white">Itinerario por día</h2>
-
+      <Card title="Itinerario por día">
         <div
           className="mt-4 flex gap-2 overflow-x-auto pb-1"
           role="tablist"
@@ -211,14 +224,18 @@ export function PlanningBoard({
               role="tab"
               aria-selected={activeDay?.id === day.id}
               onClick={() => setActiveDayNumber(day.day_number)}
-              className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={cn(
+                buttons.base,
+                "shrink-0 px-4",
                 activeDay?.id === day.id
-                  ? "bg-blue-600 text-white"
-                  : "border border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
-              }`}
+                  ? buttons.primary
+                  : buttons.secondary,
+              )}
             >
               Día {day.day_number}
-              <span className="ml-2 text-xs opacity-80">({day.items.length})</span>
+              <span className={cn(typography.muted, "ml-2 font-normal")}>
+                ({day.items.length})
+              </span>
             </button>
           ))}
         </div>
@@ -229,20 +246,32 @@ export function PlanningBoard({
             disabled={isPending}
             onOpenPlace={(placeId) => setSelectedPlaceId(placeId)}
             onMoveUp={(itemId) =>
-              runAction(() => moveItineraryItemAction(itemId, "up"))
+              runAction(
+                () => moveItineraryItemAction(itemId, "up"),
+                "Orden actualizado.",
+              )
             }
             onMoveDown={(itemId) =>
-              runAction(() => moveItineraryItemAction(itemId, "down"))
+              runAction(
+                () => moveItineraryItemAction(itemId, "down"),
+                "Orden actualizado.",
+              )
             }
             onRemove={(itemId) =>
-              runAction(() => removePlaceFromDayAction(itemId))
+              runAction(
+                () => removePlaceFromDayAction(itemId),
+                "Lugar quitado del día.",
+              )
             }
             onRegenerateDay={() =>
-              runOptimizer(() => regenerateDayItineraryAction(activeDay.id))
+              runOptimizer(
+                () => regenerateDayItineraryAction(activeDay.id),
+                "Día regenerado correctamente.",
+              )
             }
           />
         ) : null}
-      </section>
+      </Card>
     </div>
   );
 }
@@ -253,49 +282,51 @@ function OptimizerSummaryPanel({ summary }: { summary: OptimizerSummary }) {
     0,
   );
 
-  return (
-    <div
-      className={`mt-4 rounded-xl border p-4 ${
-        summary.ok
-          ? "border-emerald-500/30 bg-emerald-950/20"
-          : "border-red-500/30 bg-red-950/20"
-      }`}
-    >
-      <h3
-        className={`text-sm font-semibold ${
-          summary.ok ? "text-emerald-100" : "text-red-100"
-        }`}
-      >
-        {summary.ok ? "Itinerario generado" : "Error al generar"}
-      </h3>
+  if (!summary.ok) {
+    return (
+      <ErrorMessage
+        className="mt-4"
+        message="No se pudo generar el itinerario."
+        technicalDetails={summary.error}
+      />
+    );
+  }
 
-      {summary.ok ? (
-        <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-slate-400">Asignados en total</dt>
-            <dd className="font-medium text-white">{totalAssigned}</dd>
+  return (
+    <div className={cn(surfaces.inset, "mt-4 p-4")}>
+      <h3 className={typography.sectionTitle}>Itinerario generado</h3>
+
+      <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div>
+          <dt className={typography.secondary}>Asignados en total</dt>
+          <dd className={cn(typography.body, "font-medium text-white")}>{totalAssigned}</dd>
+        </div>
+        {summary.assignedByDay.map((day) => (
+          <div key={day.dayNumber}>
+            <dt className={typography.secondary}>Día {day.dayNumber}</dt>
+            <dd className={cn(typography.body, "font-medium text-white")}>
+              {day.count} lugar(es)
+            </dd>
           </div>
-          {summary.assignedByDay.map((day) => (
-            <div key={day.dayNumber}>
-              <dt className="text-slate-400">Día {day.dayNumber}</dt>
-              <dd className="font-medium text-white">{day.count} lugar(es)</dd>
-            </div>
-          ))}
-          <div>
-            <dt className="text-slate-400">Sin asignar (tiempo)</dt>
-            <dd className="font-medium text-white">{summary.unassignedDueToTime}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-400">Sin coordenadas</dt>
-            <dd className="font-medium text-white">{summary.withoutCoordinates}</dd>
-          </div>
-        </dl>
-      ) : null}
+        ))}
+        <div>
+          <dt className={typography.secondary}>Sin asignar (tiempo)</dt>
+          <dd className={cn(typography.body, "font-medium text-white")}>
+            {summary.unassignedDueToTime}
+          </dd>
+        </div>
+        <div>
+          <dt className={typography.secondary}>Sin coordenadas</dt>
+          <dd className={cn(typography.body, "font-medium text-white")}>
+            {summary.withoutCoordinates}
+          </dd>
+        </div>
+      </dl>
 
       {summary.warnings.length > 0 ? (
         <ul className="mt-3 space-y-1">
           {summary.warnings.map((warning) => (
-            <li key={warning} className="text-sm text-amber-100">
+            <li key={warning} className={cn(typography.body, "text-amber-200")}>
               {warning}
             </li>
           ))}
@@ -316,7 +347,10 @@ function PlaceOpenButton({
     <button
       type="button"
       onClick={onOpen}
-      className="font-medium text-left text-white underline decoration-blue-500/50 underline-offset-2 hover:text-blue-200"
+      className={cn(
+        typography.placeName,
+        "text-left underline decoration-blue-500/50 underline-offset-2 hover:text-blue-200",
+      )}
     >
       {name}
     </button>
@@ -339,11 +373,11 @@ function UnplannedPlaceCard({
   const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
 
   return (
-    <li className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+    <li className={cn(surfaces.inset, "p-4")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <PlaceOpenButton name={place.name} onOpen={onOpen} />
-          <p className="mt-1 text-sm text-slate-400">
+          <p className={cn(typography.placeMeta, "mt-1")}>
             {formatCategory(place.category)} · {formatDurationMinutes(place.duration_minutes)}
           </p>
         </div>
@@ -353,7 +387,7 @@ function UnplannedPlaceCard({
             value={selectedDayId}
             onChange={(event) => setSelectedDayId(event.target.value)}
             disabled={disabled || days.length === 0}
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+            className={inputs.base}
           >
             {days.map((day) => (
               <option key={day.id} value={day.id}>
@@ -361,14 +395,13 @@ function UnplannedPlaceCard({
               </option>
             ))}
           </select>
-          <button
+          <Button
             type="button"
             disabled={disabled || !selectedDayId}
             onClick={() => onAssign(selectedDayId)}
-            className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Agregar al día
-          </button>
+          </Button>
         </div>
       </div>
     </li>
@@ -400,51 +433,50 @@ function DayPlanPanel({
   return (
     <div className="mt-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-400">
+        <p className={typography.secondary}>
           Día {day.day_number}
           {day.date ? ` · ${day.date}` : ""} · Duración estimada:{" "}
           {formatDurationMinutes(totalMinutes)}
         </p>
-        <button
+        <Button
           type="button"
+          variant="secondary"
           disabled={disabled}
+          loading={disabled}
           onClick={onRegenerateDay}
-          className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Regenerar solo este día
-        </button>
+        </Button>
       </div>
 
       {day.items.length === 0 ? (
-        <p className="mt-4 text-sm text-slate-500">
-          Aún no hay lugares asignados a este día.
-        </p>
+        <EmptyState
+          className="mt-4"
+          title="Día sin lugares"
+          description="Aún no hay lugares asignados a este día. Agrega lugares desde la lista sin planear o usa el optimizador."
+        />
       ) : (
         <ol className="mt-4 flex flex-col gap-3">
           {day.items.map((item, index) => (
-            <li
-              key={item.id}
-              className="rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-            >
+            <li key={item.id} className={cn(surfaces.inset, "p-4")}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <p className={typography.muted}>
                     #{index + 1}
                     {item.is_fixed ? " · Fijado" : ""}
                   </p>
-                  <p className="mt-1 font-medium text-white">
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     {item.start_time ? (
-                      <span className="text-blue-300">
+                      <span className={typography.placeTime}>
                         {formatScheduleTime(item.start_time)}
-                        {" — "}
                       </span>
                     ) : null}
                     <PlaceOpenButton
                       name={item.place.name}
                       onOpen={() => onOpenPlace(item.place.id)}
                     />
-                  </p>
-                  <p className="mt-1 text-sm text-slate-400">
+                  </div>
+                  <p className={cn(typography.placeMeta, "mt-1")}>
                     {formatCategory(item.place.category)} ·{" "}
                     {formatDurationMinutes(item.place.duration_minutes)}
                     {item.end_time
@@ -454,35 +486,33 @@ function DayPlanPanel({
                 </div>
 
                 {item.is_fixed ? (
-                  <p className="text-xs text-slate-500">
-                    Fijado — puedes editar el detalle, no reordenar
-                  </p>
+                  <p className={typography.muted}>Fijado — puedes editar el detalle, no reordenar</p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
                       disabled={disabled || index === 0}
                       onClick={() => onMoveUp(item.id)}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Subir
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       disabled={disabled || index === day.items.length - 1}
                       onClick={() => onMoveDown(item.id)}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-200 transition hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Bajar
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="danger"
                       disabled={disabled}
                       onClick={() => onRemove(item.id)}
-                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 transition hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Quitar
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>

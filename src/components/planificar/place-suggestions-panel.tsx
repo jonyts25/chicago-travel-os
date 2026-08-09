@@ -6,16 +6,21 @@ import {
   addSelectedPlaceSuggestionsAction,
   suggestPlacesAction,
 } from "@/app/planificar/suggestion-actions";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { useToast } from "@/components/ui/toast-provider";
 import type { PlaceSuggestion } from "@/lib/ai/suggest-places";
+import { cn, surfaces, typography } from "@/lib/ui/styles";
 
 export function PlaceSuggestionsPanel() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isSuggesting, startSuggesting] = useTransition();
   const [isAdding, startAdding] = useTransition();
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [contextSummary, setContextSummary] = useState<{
     baseLocation: string | null;
     travelerCount: number;
@@ -28,7 +33,6 @@ export function PlaceSuggestionsPanel() {
 
   function handleSuggest() {
     setError(null);
-    setResultMessage(null);
 
     startSuggesting(async () => {
       const result = await suggestPlacesAction();
@@ -69,7 +73,6 @@ export function PlaceSuggestionsPanel() {
     }
 
     setError(null);
-    setResultMessage(null);
 
     startAdding(async () => {
       const result = await addSelectedPlaceSuggestionsAction(selected);
@@ -91,7 +94,10 @@ export function PlaceSuggestionsPanel() {
         parts.push(`${result.skippedDuplicate.length} ya estaban en la lista`);
       }
 
-      setResultMessage(parts.join(" · "));
+      if (parts.length > 0) {
+        showToast(parts.join(" · "));
+      }
+
       if (result.errors.length > 0) {
         setError(result.errors.join(" "));
       }
@@ -101,32 +107,28 @@ export function PlaceSuggestionsPanel() {
   }
 
   return (
-    <section className="rounded-2xl border border-violet-500/30 bg-violet-950/20 p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-medium text-white">Sugerencias con IA</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Propone lugares según las preferencias de ambos viajeros, el hotel y lo que ya tenéis
-            en la lista. Son ideas generadas por IA — revísalas antes de agregar.
-          </p>
-        </div>
-        <button
+    <Card
+      title="Sugerencias con IA"
+      subtitle="Propone lugares según las preferencias de ambos viajeros, el hotel y lo que ya tenéis en la lista. Son ideas generadas por IA — revísalas antes de agregar."
+    >
+      <div className="mt-4 flex justify-end">
+        <Button
           type="button"
           disabled={isSuggesting || isAdding}
+          loading={isSuggesting}
           onClick={handleSuggest}
-          className="shrink-0 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSuggesting ? "Generando..." : "Sugerir lugares"}
-        </button>
+          Sugerir lugares
+        </Button>
       </div>
 
-      <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
+      <p className={cn(surfaces.inset, "mt-3 px-3 py-2", typography.muted, "text-amber-100/90")}>
         Estas sugerencias son generadas por IA y pueden no ser exactas. No están verificadas —
         elige solo las que quieras y se geocodificarán con Nominatim antes de entrar a la lista.
       </p>
 
       {contextSummary ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className={cn(typography.muted, "mt-3")}>
           Contexto usado: {contextSummary.travelerCount} viajero(s) ·{" "}
           {contextSummary.existingPlaceCount} lugar(es) ya en la lista · hotel/base:{" "}
           {contextSummary.baseLocation || "sin indicar"}
@@ -134,15 +136,11 @@ export function PlaceSuggestionsPanel() {
       ) : null}
 
       {error ? (
-        <p className="mt-3 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-          {error}
-        </p>
-      ) : null}
-
-      {resultMessage ? (
-        <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200">
-          {resultMessage}
-        </p>
+        <ErrorMessage
+          className="mt-3"
+          message="No se pudieron procesar las sugerencias."
+          technicalDetails={error}
+        />
       ) : null}
 
       {suggestions.length > 0 ? (
@@ -155,7 +153,7 @@ export function PlaceSuggestionsPanel() {
               return (
                 <li
                   key={key}
-                  className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3"
+                  className={cn(surfaces.inset, "bg-slate-950/70 px-3 py-3")}
                 >
                   <label className="flex cursor-pointer items-start gap-3">
                     <input
@@ -165,10 +163,10 @@ export function PlaceSuggestionsPanel() {
                       className="mt-1 rounded border-slate-600"
                     />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium text-white">
+                      <span className={cn(typography.placeName, "block text-base")}>
                         {suggestion.name}
                       </span>
-                      <span className="mt-1 block text-sm text-slate-400">
+                      <span className={cn(typography.secondary, "mt-1 block")}>
                         {suggestion.reason}
                       </span>
                     </span>
@@ -178,16 +176,17 @@ export function PlaceSuggestionsPanel() {
             })}
           </ul>
 
-          <button
+          <Button
             type="button"
             disabled={isAdding || selectedKeys.size === 0}
+            loading={isAdding}
             onClick={handleAddSelected}
-            className="self-start rounded-lg border border-violet-400/40 bg-violet-900/40 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:border-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
+            className="self-start"
           >
-            {isAdding ? "Agregando..." : `Agregar seleccionados (${selectedKeys.size})`}
-          </button>
+            Agregar seleccionados ({selectedKeys.size})
+          </Button>
         </div>
       ) : null}
-    </section>
+    </Card>
   );
 }

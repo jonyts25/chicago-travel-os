@@ -9,6 +9,10 @@ import {
   updatePlaceAction,
 } from "@/app/planificar/place-actions";
 import { PlaceDocumentsSection } from "@/components/planificar/place-documents-section";
+import { Button } from "@/components/ui/button";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast-provider";
 import {
   PLACE_CATEGORIES,
   PLACE_INTERESTS,
@@ -21,6 +25,7 @@ import {
   toTimeInputValue,
 } from "@/lib/places/place-format";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
+import { buttons, cn, colors, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceDetailModalProps = {
   placeId: string | null;
@@ -30,6 +35,7 @@ type PlaceDetailModalProps = {
 
 export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalProps) {
   const router = useRouter();
+  const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(false);
   const [place, setPlace] = useState<PlaceDetail | null>(null);
@@ -157,6 +163,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         setPlace(refreshed.place);
       }
 
+      showToast("Cambios guardados.");
       router.refresh();
     });
   }
@@ -180,6 +187,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         setPlace(refreshed.place);
       }
 
+      showToast("Coordenadas actualizadas.");
       router.refresh();
     });
   }
@@ -197,6 +205,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         return;
       }
 
+      showToast("Lugar eliminado.");
       router.refresh();
       onClose();
     });
@@ -218,29 +227,27 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
       onClick={handleClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl"
+        className={cn(surfaces.card, "max-h-[90vh] w-full max-w-lg overflow-y-auto shadow-2xl")}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-5 py-4 backdrop-blur">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-blue-400">
-              Detalle del lugar
-            </p>
-            <h2 id="place-detail-title" className="mt-1 text-lg font-semibold text-white">
+            <p className={typography.eyebrow}>Detalle del lugar</p>
+            <h2 id="place-detail-title" className={cn(typography.sectionTitle, "mt-1")}>
               {loading ? "Cargando..." : place?.name ?? "Lugar"}
             </h2>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-900"
+            className={cn(buttons.icon, "px-3 text-sm")}
           >
             Cerrar
           </button>
         </div>
 
         {loading ? (
-          <p className="px-5 py-8 text-sm text-slate-400">Cargando datos...</p>
+          <ModalLoadingSkeleton />
         ) : place ? (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-5 py-5">
             <Field label="Nombre">
@@ -248,7 +255,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
-                className={inputClassName}
+                className={inputs.base}
               />
             </Field>
 
@@ -257,7 +264,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
-                  className={inputClassName}
+                  className={inputs.base}
                 >
                   <option value="">Sin categoría</option>
                   {PLACE_CATEGORIES.map((value) => (
@@ -272,7 +279,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 <select
                   value={priority}
                   onChange={(event) => setPriority(event.target.value)}
-                  className={inputClassName}
+                  className={inputs.base}
                 >
                   {PLACE_PRIORITIES.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -288,7 +295,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 <select
                   value={interest}
                   onChange={(event) => setInterest(event.target.value)}
-                  className={inputClassName}
+                  className={inputs.base}
                 >
                   {PLACE_INTERESTS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -306,7 +313,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                   value={durationMinutes}
                   onChange={(event) => setDurationMinutes(event.target.value)}
                   placeholder="60"
-                  className={inputClassName}
+                  className={inputs.base}
                 />
               </Field>
             </div>
@@ -316,7 +323,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 value={openingHours}
                 onChange={(event) => setOpeningHours(event.target.value)}
                 placeholder='Ej. "9:00-18:00" o "Cerrado los lunes"'
-                className={inputClassName}
+                className={inputs.base}
               />
             </Field>
 
@@ -325,13 +332,13 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={3}
-                className={inputClassName}
+                className={inputs.base}
               />
             </Field>
 
             <PlaceDocumentsSection placeId={place.id} />
 
-            <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+            <section className={cn(surfaces.inset, "p-4")}>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-200">
                 <input
                   type="checkbox"
@@ -350,7 +357,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                       value={reservationStartTime}
                       onChange={(event) => setReservationStartTime(event.target.value)}
                       required
-                      className={inputClassName}
+                      className={inputs.base}
                     />
                   </Field>
 
@@ -360,7 +367,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                         value={assignToDayId}
                         onChange={(event) => setAssignToDayId(event.target.value)}
                         required
-                        className={inputClassName}
+                        className={inputs.base}
                       >
                         {days.map((day) => (
                           <option key={day.id} value={day.id}>
@@ -368,13 +375,13 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                           </option>
                         ))}
                       </select>
-                      <p className="mt-1 text-xs text-slate-500">
+                      <p className={typography.muted}>
                         Este lugar está sin planear — elige el día antes de fijar la
                         reserva.
                       </p>
                     </Field>
                   ) : place.itinerary ? (
-                    <p className="text-sm text-slate-400">
+                    <p className={typography.secondary}>
                       Día de la reserva:{" "}
                       <span className="font-medium text-slate-200">
                         Día {place.itinerary.dayNumber}
@@ -389,91 +396,110 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
               ) : null}
             </section>
 
-            <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-              <h3 className="text-sm font-medium text-slate-200">Coordenadas</h3>
+            <section className={cn(surfaces.inset, "p-4")}>
+              <h3 className={typography.body}>Coordenadas</h3>
               {hasCoordinates ? (
-                <div className="mt-2 space-y-1 text-sm text-slate-400">
-                  <p>{formatCoordinates(place.lat, place.lng)}</p>
-                  {place.address ? <p>{place.address}</p> : null}
-                  <p className="text-xs text-slate-500">Solo lectura</p>
+                <div className="mt-2 space-y-1">
+                  <p className={typography.secondary}>{formatCoordinates(place.lat, place.lng)}</p>
+                  {place.address ? <p className={typography.secondary}>{place.address}</p> : null}
+                  <p className={typography.muted}>Solo lectura</p>
                 </div>
               ) : (
                 <div className="mt-2 space-y-3">
-                  <p className="text-sm text-amber-200">
+                  <p className={cn(typography.body, colors.warning)}>
                     Sin coordenadas — no aparece en el mapa ni en el optimizador.
                   </p>
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
                     disabled={isPending}
+                    loading={isPending}
                     onClick={handleRetryGeocoding}
-                    className="rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-medium text-amber-100 hover:bg-amber-950/40 disabled:opacity-60"
                   >
                     Reintentar geocoding
-                  </button>
+                  </Button>
                 </div>
               )}
             </section>
 
             {error ? (
-              <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-                {error}
-              </p>
+              <ErrorMessage
+                message="No se pudo completar la operación."
+                technicalDetails={error}
+              />
             ) : null}
 
             <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:justify-between">
               <div>
                 {showDeleteConfirm ? (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <p className="text-sm text-red-200">¿Eliminar este lugar?</p>
-                    <button
+                    <p className={cn(typography.body, colors.error)}>¿Eliminar este lugar?</p>
+                    <Button
                       type="button"
+                      variant="danger"
                       disabled={isPending}
+                      loading={isPending}
                       onClick={handleDelete}
-                      className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-60"
                     >
                       Confirmar
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       disabled={isPending}
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300"
                     >
                       Cancelar
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="danger"
                     disabled={isPending}
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="rounded-lg border border-red-500/40 px-3 py-2 text-sm text-red-200 hover:bg-red-950/40 disabled:opacity-60"
                   >
                     Eliminar lugar
-                  </button>
+                  </Button>
                 )}
               </div>
 
-              <button
-                type="submit"
-                disabled={isPending}
-                className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
-              >
-                {isPending ? "Guardando..." : "Guardar cambios"}
-              </button>
+              <Button type="submit" disabled={isPending} loading={isPending}>
+                Guardar cambios
+              </Button>
             </div>
 
             {place.duration_minutes != null ? (
-              <p className="text-xs text-slate-500">
+              <p className={typography.muted}>
                 Duración actual en lista: {formatDurationMinutes(place.duration_minutes)} ·{" "}
                 {formatCategory(place.category)}
               </p>
             ) : null}
           </form>
         ) : (
-          <p className="px-5 py-8 text-sm text-red-200">{error ?? "No se pudo cargar."}</p>
+          <div className="px-5 py-8">
+            <ErrorMessage
+              message="No se pudo cargar el lugar."
+              technicalDetails={error}
+            />
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ModalLoadingSkeleton() {
+  return (
+    <div className="flex flex-col gap-4 px-5 py-5">
+      <Skeleton className="h-11 w-full" />
+      <div className="grid grid-cols-2 gap-4">
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-full" />
+      </div>
+      <Skeleton className="h-11 w-full" />
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-32 w-full" />
     </div>
   );
 }
@@ -486,12 +512,9 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+    <label className={inputs.label}>
       {label}
       {children}
     </label>
   );
 }
-
-const inputClassName =
-  "rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500";
