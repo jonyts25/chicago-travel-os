@@ -55,16 +55,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/login") {
+  if (user && pathname === "/" && !isLoginRoute) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
+    redirectUrl.pathname = "/hoy";
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/" && !isLoginRoute) {
+  if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
+    redirectUrl.pathname = "/hoy";
+    redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
 

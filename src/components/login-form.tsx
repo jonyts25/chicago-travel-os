@@ -2,6 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { inputs } from "@/lib/ui/styles";
 import { createClient } from "@/lib/supabase/client";
 
 type LoginFormProps = {
@@ -30,12 +33,12 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [technicalError, setTechnicalError] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus("loading");
-    setErrorMessage(null);
+    setTechnicalError(null);
 
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
@@ -45,7 +48,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
     if (error) {
       setStatus("error");
-      setErrorMessage(mapAuthError(error.message));
+      setTechnicalError(error.message);
       return;
     }
 
@@ -55,7 +58,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex w-full flex-col gap-4">
-      <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+      <label className={inputs.label}>
         Email
         <input
           type="email"
@@ -65,11 +68,11 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="tu@email.com"
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-white outline-none ring-blue-500 placeholder:text-slate-500 focus:ring-2"
+          className={inputs.base}
         />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+      <label className={inputs.label}>
         Contraseña
         <input
           type="password"
@@ -79,22 +82,19 @@ export function LoginForm({ nextPath }: LoginFormProps) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="••••••••"
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-white outline-none ring-blue-500 placeholder:text-slate-500 focus:ring-2"
+          className={inputs.base}
         />
       </label>
 
-      <button
-        type="submit"
-        disabled={status === "loading"}
-        className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {status === "loading" ? "Entrando..." : "Entrar"}
-      </button>
+      <Button type="submit" loading={status === "loading"} className="w-full">
+        Entrar
+      </Button>
 
-      {errorMessage ? (
-        <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
-          {errorMessage}
-        </p>
+      {status === "error" ? (
+        <ErrorMessage
+          message="No pudimos iniciar sesión. Revisa tus datos e intenta de nuevo."
+          technicalDetails={technicalError}
+        />
       ) : null}
     </form>
   );

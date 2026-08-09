@@ -2,9 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { importPlacesAction } from "@/app/import/actions";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { useToast } from "@/components/ui/toast-provider";
+import { inputs, surfaces, typography } from "@/lib/ui/styles";
 import type { ImportPlacesResult } from "@/lib/importers/types";
 
 export function ImportPlacesForm() {
+  const { showToast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [result, setResult] = useState<ImportPlacesResult | null>(null);
@@ -19,12 +25,18 @@ export function ImportPlacesForm() {
 
     setResult(summary);
     setStatus("done");
+
+    if (summary.imported > 0 || summary.updated > 0) {
+      showToast(
+        `${summary.imported} importados, ${summary.updated} actualizados`,
+      );
+    }
   }
 
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+        <label className={inputs.label}>
           CSV de Google Takeout (Saved)
           <input
             type="file"
@@ -35,73 +47,49 @@ export function ImportPlacesForm() {
               const selected = event.target.files?.[0];
               setFileName(selected?.name ?? null);
             }}
-            className="block w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-500"
+            className={`${inputs.base} file:mr-3 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-500`}
           />
         </label>
 
-        {fileName ? (
-          <p className="text-sm text-slate-400">Seleccionado: {fileName}</p>
-        ) : null}
+        {fileName ? <p className={typography.secondary}>Seleccionado: {fileName}</p> : null}
 
-        <button
-          type="submit"
-          disabled={status === "loading"}
-          className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {status === "loading" ? "Importando..." : "Importar lugares"}
-        </button>
+        <Button type="submit" loading={status === "loading"}>
+          Importar lugares
+        </Button>
       </form>
 
       {result ? (
-        <section className="rounded-xl border border-slate-800 bg-slate-950/80 p-5">
-          <h2 className="text-lg font-medium text-white">Resumen de importación</h2>
-
+        <Card title="Resumen de importación">
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <SummaryCard label="Importados" value={result.imported} tone="emerald" />
-            <SummaryCard label="Actualizados" value={result.updated} tone="blue" />
-            <SummaryCard
-              label="Sin coordenadas"
-              value={result.withoutCoordinates}
-              tone="slate"
-            />
-            <SummaryCard
-              label="Sin categoría IA"
-              value={result.withoutAiCategory}
-              tone="slate"
-            />
-            <SummaryCard
-              label="Sin CID en URL"
-              value={result.skippedNoId}
-              tone="slate"
-            />
+            <SummaryCard label="Importados" value={result.imported} tone="success" />
+            <SummaryCard label="Actualizados" value={result.updated} tone="accent" />
+            <SummaryCard label="Sin coordenadas" value={result.withoutCoordinates} />
+            <SummaryCard label="Sin categoría IA" value={result.withoutAiCategory} />
+            <SummaryCard label="Sin CID en URL" value={result.skippedNoId} />
           </dl>
 
           {result.errors.length > 0 ? (
-            <ul className="mt-4 space-y-2">
+            <div className="mt-4 space-y-2">
               {result.errors.map((error) => (
-                <li
+                <ErrorMessage
                   key={error}
-                  className={`rounded-lg border px-3 py-2 text-sm ${
+                  message={
                     result.imported > 0 || result.updated > 0
-                      ? "border-amber-500/40 bg-amber-950/40 text-amber-100"
-                      : "border-red-500/40 bg-red-950/40 text-red-200"
-                  }`}
-                >
-                  {error}
-                </li>
+                      ? "La importación terminó con advertencias."
+                      : "No pudimos completar la importación."
+                  }
+                  technicalDetails={error}
+                />
               ))}
-            </ul>
+            </div>
           ) : null}
 
-          {result.errors.length === 0 &&
-          result.imported === 0 &&
-          result.updated > 0 ? (
-            <p className="mt-4 text-sm text-slate-400">
-              Se reimportaron {result.updated} lugar(es) existentes (geocodificación
-              y/o categoría IA).
+          {result.errors.length === 0 && result.imported === 0 && result.updated > 0 ? (
+            <p className={`${typography.secondary} mt-4`}>
+              Se reimportaron {result.updated} lugar(es) existentes.
             </p>
           ) : null}
-        </section>
+        </Card>
       ) : null}
     </div>
   );
@@ -110,21 +98,22 @@ export function ImportPlacesForm() {
 function SummaryCard({
   label,
   value,
-  tone,
+  tone = "neutral",
 }: {
   label: string;
   value: number;
-  tone: "emerald" | "blue" | "slate";
+  tone?: "success" | "accent" | "neutral";
 }) {
-  const styles = {
-    emerald: "border-emerald-500/30 bg-emerald-950/30 text-emerald-300",
-    blue: "border-blue-500/30 bg-blue-950/30 text-blue-300",
-    slate: "border-slate-700 bg-slate-900/60 text-slate-400",
-  };
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-500/30 bg-emerald-950/30"
+      : tone === "accent"
+        ? "border-blue-500/30 bg-blue-950/30"
+        : surfaces.inset;
 
   return (
-    <div className={`rounded-lg border px-4 py-3 ${styles[tone]}`}>
-      <dt>{label}</dt>
+    <div className={`rounded-xl border px-4 py-3 ${toneClass}`}>
+      <dt className={typography.secondary}>{label}</dt>
       <dd className="mt-1 text-2xl font-semibold text-white">{value}</dd>
     </div>
   );

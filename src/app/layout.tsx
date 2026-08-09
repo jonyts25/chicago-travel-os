@@ -1,3 +1,4 @@
+import { AppProviders } from "@/components/layout/app-providers";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -46,7 +47,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-950 text-slate-100">{children}</body>
+      <body className="min-h-full bg-slate-950 font-sans text-slate-100 antialiased">
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

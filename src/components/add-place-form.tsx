@@ -3,15 +3,21 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { addPlaceAction } from "@/app/import/agregar/actions";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ErrorMessage } from "@/components/ui/error-message";
+import { useToast } from "@/components/ui/toast-provider";
 import { extractPlaceNameFromMapsUrl } from "@/lib/importers/google-maps";
 import type { AddPlaceResult } from "@/lib/importers/types";
 import { formatCategory } from "@/lib/planning/format";
+import { inputs, typography } from "@/lib/ui/styles";
 
 type AddPlaceFormProps = {
   initialMapsUrl?: string;
 };
 
 export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
+  const { showToast } = useToast();
   const [mapsUrl, setMapsUrl] = useState(initialMapsUrl);
   const [manualName, setManualName] = useState("");
   const [showNameField, setShowNameField] = useState(false);
@@ -52,6 +58,9 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
     }
 
     if (summary.ok) {
+      showToast(
+        summary.action === "updated" ? "Lugar actualizado" : "Lugar agregado",
+      );
       setMapsUrl("");
       setManualName("");
       setShowNameField(false);
@@ -61,7 +70,7 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+        <label className={inputs.label}>
           Enlace de Google Maps
           <input
             type="url"
@@ -74,18 +83,16 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
               syncNameFromUrl(nextUrl);
             }}
             placeholder="https://www.google.com/maps/place/.../data=!4m2!3m1!1s0x..."
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+            className={inputs.base}
           />
         </label>
 
-        <p className="text-xs text-slate-500">
-          El enlace debe incluir el CID en{" "}
-          <code className="text-slate-400">!1s0x…:0x…</code> (copia desde
-          Compartir en Google Maps, no un enlace corto sin redirección).
+        <p className={typography.muted}>
+          El enlace debe incluir el CID en <code className="text-slate-400">!1s0x…:0x…</code>.
         </p>
 
         {showNameField ? (
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-200">
+          <label className={inputs.label}>
             Nombre del lugar
             <input
               type="text"
@@ -93,7 +100,7 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
               value={manualName}
               onChange={(event) => setManualName(event.target.value)}
               placeholder="Ej. Art Institute of Chicago"
-              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+              className={inputs.base}
             />
           </label>
         ) : (
@@ -101,7 +108,7 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
         )}
 
         {!showNameField && manualName ? (
-          <p className="text-sm text-slate-400">
+          <p className={typography.secondary}>
             Nombre detectado:{" "}
             <span className="font-medium text-slate-200">{manualName}</span>{" "}
             <button
@@ -114,85 +121,58 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
           </p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={status === "loading"}
-          className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {status === "loading" ? "Agregando..." : "Agregar lugar"}
-        </button>
+        <Button type="submit" loading={status === "loading"}>
+          Agregar lugar
+        </Button>
       </form>
 
       {result ? (
-        <section
-          className={`rounded-xl border p-5 ${
-            result.ok
-              ? "border-emerald-500/40 bg-emerald-950/30"
-              : "border-red-500/40 bg-red-950/30"
-          }`}
-        >
+        <Card tone={result.ok ? "success" : "default"} title={result.ok ? (result.action === "updated" ? "Lugar actualizado" : "Lugar agregado") : undefined}>
           {result.ok ? (
             <>
-              <h2 className="text-lg font-medium text-emerald-100">
-                {result.action === "updated"
-                  ? "Lugar actualizado"
-                  : "Lugar agregado"}
-              </h2>
-              <dl className="mt-4 space-y-2 text-sm">
+              <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-4">
-                  <dt className="text-emerald-200/80">Nombre</dt>
+                  <dt className={typography.secondary}>Nombre</dt>
                   <dd className="font-medium text-white">{result.name}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-emerald-200/80">Categoría</dt>
-                  <dd className="font-medium text-white">
-                    {formatCategory(result.category)}
-                  </dd>
+                  <dt className={typography.secondary}>Categoría</dt>
+                  <dd className="font-medium text-white">{formatCategory(result.category)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-emerald-200/80">Coordenadas</dt>
+                  <dt className={typography.secondary}>Coordenadas</dt>
                   <dd className="font-medium text-white">
-                    {result.hasCoordinates
-                      ? "Encontradas (Nominatim)"
-                      : "No encontradas — edita después en el mapa"}
+                    {result.hasCoordinates ? "Encontradas" : "No encontradas"}
                   </dd>
                 </div>
               </dl>
-              <p className="mt-4 text-sm text-emerald-100/80">
-                El lugar quedó en{" "}
-                <span className="font-medium text-white">Sin planear</span>.
-                Asígnalo en{" "}
-                <Link href="/planificar" className="text-blue-300 hover:text-blue-200">
-                  /planificar
+              <p className={`${typography.secondary} mt-4`}>
+                Quedó en Sin planear. Asígnalo en{" "}
+                <Link href="/planificar" className="text-blue-400 hover:text-blue-300">
+                  Planificar
                 </Link>
                 .
               </p>
             </>
           ) : (
-            <>
-              <h2 className="text-lg font-medium text-red-100">
-                No se pudo agregar
-              </h2>
-              <ul className="mt-3 space-y-2">
-                {result.errors.map((error) => (
-                  <li key={error} className="text-sm text-red-200">
-                    {error}
-                  </li>
-                ))}
-              </ul>
-            </>
+            <ErrorMessage
+              message="No se pudo agregar el lugar."
+              technicalDetails={result.errors.join("\n")}
+            />
           )}
 
           {result.errors.length > 0 && result.ok ? (
-            <ul className="mt-4 space-y-2 border-t border-emerald-500/20 pt-4">
+            <div className="mt-4 border-t border-slate-800 pt-4">
               {result.errors.map((error) => (
-                <li key={error} className="text-sm text-amber-100">
-                  {error}
-                </li>
+                <ErrorMessage
+                  key={error}
+                  message="El lugar se guardó con advertencias."
+                  technicalDetails={error}
+                />
               ))}
-            </ul>
+            </div>
           ) : null}
-        </section>
+        </Card>
       ) : null}
     </div>
   );

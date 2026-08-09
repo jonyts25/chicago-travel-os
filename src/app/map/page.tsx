@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { TripMapLoader } from "@/components/map/trip-map-loader";
-import { SignOutButton } from "@/components/sign-out-button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageContainer } from "@/components/ui/page-container";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
 import { CHICAGO_TRIP_ID, PLACE_STATUS_UNPLANNED } from "@/lib/constants";
 import { hasCoordinates, type PlaceMapMarker } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -82,87 +86,47 @@ export default async function MapPage({ searchParams }: MapPageProps) {
     : `${places.length} lugar${places.length === 1 ? "" : "es"} con coordenadas`;
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-blue-400">
-            Mapa
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold text-white">
-            {filterUnplanned ? "Alternativas cercanas" : "Lugares en Chicago"}
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            {subtitle}
-            {filterUnplanned ? " · solo pool sin planificar" : ""}
-            {hasNearPoint ? " · centrado cerca del bloque actual" : ""}
-            {" · tiles OpenStreetMap (sin API key)"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/hoy"
-            className="rounded-lg border border-emerald-700/60 px-4 py-2 text-sm font-medium text-emerald-200 transition hover:border-emerald-500 hover:bg-emerald-950/40"
-          >
-            Modo hoy
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/import"
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-500 hover:bg-slate-800"
-          >
-            Importar
-          </Link>
-          <SignOutButton />
-        </div>
-      </div>
+    <PageContainer size="lg">
+      <PageHeader
+        eyebrow="Mapa"
+        title={filterUnplanned ? "Alternativas cercanas" : "Lugares en Chicago"}
+        subtitle={`${subtitle}${filterUnplanned ? " · solo sin planificar" : ""}${hasNearPoint ? " · centrado cerca del bloque actual" : ""} · OpenStreetMap`}
+      />
 
       {filterUnplanned ? (
-        <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90">
-          Mostrando lugares <strong>unplanned</strong> como alternativas.{" "}
-          <Link href="/map" className="font-medium text-amber-200 underline-offset-2 hover:underline">
-            Ver todos los lugares
-          </Link>
-        </section>
+        <Card tone="warning" className="mb-4 !py-4">
+          <p className="text-sm text-amber-100/90">
+            Mostrando lugares sin planificar como alternativas.{" "}
+            <Link href="/map" className="font-medium text-amber-200 underline-offset-2 hover:underline">
+              Ver todos
+            </Link>
+          </p>
+        </Card>
       ) : null}
 
       {places.length === 0 ? (
-        <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6 text-sm text-slate-400">
-          {filterUnplanned ? (
-            <>
-              No hay lugares sin planificar con coordenadas. Importa más en{" "}
-              <Link href="/import" className="font-medium text-blue-400 hover:text-blue-300">
-                /import
-              </Link>{" "}
-              o libera lugares desde{" "}
-              <Link href="/planificar" className="font-medium text-blue-400 hover:text-blue-300">
-                /planificar
-              </Link>
-              .
-            </>
-          ) : (
-            <>
-              Aún no hay lugares con coordenadas. Importa tu CSV en{" "}
-              <Link href="/import" className="font-medium text-blue-400 hover:text-blue-300">
-                /import
-              </Link>{" "}
-              y vuelve aquí.
-            </>
-          )}
-        </section>
-      ) : null}
-
-      <div className="min-h-[420px] flex-1 overflow-hidden rounded-xl border border-slate-800">
-        <TripMapLoader
-          places={places}
-          initialCenter={hasNearPoint ? [nearLat, nearLng] : undefined}
-          initialZoom={hasNearPoint ? 14 : undefined}
+        <EmptyState
+          title="Sin lugares en el mapa"
+          description={
+            filterUnplanned
+              ? "No hay lugares sin planificar con coordenadas. Importa más o libera lugares desde planificación."
+              : "Aún no hay lugares con coordenadas. Importa tu CSV para empezar."
+          }
+          action={
+            <Link href="/import">
+              <Button>Ir a importar</Button>
+            </Link>
+          }
         />
-      </div>
-    </div>
+      ) : (
+        <div className="min-h-[420px] flex-1 overflow-hidden rounded-2xl border border-slate-800">
+          <TripMapLoader
+            places={places}
+            initialCenter={hasNearPoint ? [nearLat, nearLng] : undefined}
+            initialZoom={hasNearPoint ? 14 : undefined}
+          />
+        </div>
+      )}
+    </PageContainer>
   );
 }
