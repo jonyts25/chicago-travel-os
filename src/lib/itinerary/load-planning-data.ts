@@ -179,6 +179,7 @@ export async function loadPlanningBoardData(): Promise<{
       day_start_source: resolved.dayStartSource,
       day_active_minutes_limit: resolved.dayActiveMinutesLimit,
       day_start_minutes: resolved.dayStartMinutes,
+      day_end_minutes: resolved.dayEndMinutes,
       calendar_date: calendar.calendarDate,
       calendar_date_label: calendar.calendarDateLabel,
       items,

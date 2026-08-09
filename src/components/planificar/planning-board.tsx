@@ -8,6 +8,7 @@ import {
   moveItineraryItemAction,
   regenerateDayItineraryAction,
   removePlaceFromDayAction,
+  clearDayAction,
 } from "@/app/planificar/actions";
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
 import { PlaceSuggestionsPanel } from "@/components/planificar/place-suggestions-panel";
@@ -25,8 +26,8 @@ import {
   formatDayStartSourceLabel,
 } from "@/lib/itinerary/day-constraints";
 import { formatPlanningDayTabLabel } from "@/lib/trips/trip-calendar";
-import { formatTripDateTime } from "@/lib/trips/travel-info";
-import { DEFAULT_DAY_START_MINUTES, formatScheduleTime } from "@/lib/itinerary/schedule-day";
+import { formatTripDateTime, formatTripTimeFromIso } from "@/lib/trips/travel-info";
+import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
@@ -297,6 +298,36 @@ export function PlanningBoard({
                 "Día regenerado correctamente.",
               )
             }
+            onClearDay={() => {
+              const removableCount = activeDay.items.filter((item) => !item.is_fixed).length;
+              const fixedCount = activeDay.items.length - removableCount;
+
+              if (removableCount === 0) {
+                showToast(
+                  fixedCount > 0
+                    ? "No hay lugares quitables — los fijados se conservan."
+                    : "Este día ya está vacío.",
+                );
+                return;
+              }
+
+              const fixedNote =
+                fixedCount > 0
+                  ? `\n\nSe conservarán ${fixedCount} lugar(es) fijado(s).`
+                  : "";
+              const confirmed = window.confirm(
+                `¿Vaciar el Día ${activeDay.day_number}? Se quitarán ${removableCount} lugar(es) y volverán a "sin planear".${fixedNote}\n\nEsta acción no se puede deshacer.`,
+              );
+
+              if (!confirmed) {
+                return;
+              }
+
+              runAction(
+                () => clearDayAction(activeDay.id),
+                `Día ${activeDay.day_number} vaciado.`,
+              );
+            }}
             />
           </>
         ) : null}
@@ -446,6 +477,7 @@ function DayPlanPanel({
   onMoveDown,
   onRemove,
   onRegenerateDay,
+  onClearDay,
 }: {
   day: PlanningDay;
   tripSettings: PlanningBoardData["tripSettings"];
@@ -455,12 +487,16 @@ function DayPlanPanel({
   onMoveDown: (itemId: string) => void;
   onRemove: (itemId: string) => void;
   onRegenerateDay: () => void;
+  onClearDay: () => void;
 }) {
   const totalMinutes = day.items.reduce(
     (sum, item) => sum + (item.place.duration_minutes ?? 0),
     0,
   );
-  const dayEndMinutes = DEFAULT_DAY_START_MINUTES + day.day_active_minutes_limit;
+  const flightDepartureLabel = formatFlightDepartureLabel(
+    tripSettings.flight_departure,
+    tripSettings.timezone,
+  );
 
   return (
     <div className="mt-4">
@@ -477,29 +513,58 @@ function DayPlanPanel({
           <p className={cn(typography.muted, "mt-1")}>
             Inicio: {formatDayEndMinutes(day.day_start_minutes)} (
             {formatDayStartSourceLabel(day.day_start_source)}) · Hora límite:{" "}
-            {formatDayEndMinutes(dayEndMinutes)} ({formatDayEndSourceLabel(day.day_end_source)})
-            {day.day_end_source === "flight" && tripSettings.flight_departure
-              ? ` · vuelo ${formatTripDateTime(
-                  tripSettings.flight_departure,
-                  tripSettings.timezone,
-                  {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  },
-                )}`
+            {formatDayEndMinutes(day.day_end_minutes)} ({formatDayEndSourceLabel(day.day_end_source)})
+            {day.day_end_source === "flight" && flightDepartureLabel
+              ? ` · vuelo ${flightDepartureLabel}`
               : ""}
           </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled}
-          loading={disabled}
-          onClick={onRegenerateDay}
-        >
-          Regenerar solo este día
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={disabled}
+            loading={disabled}
+            onClick={onClearDay}
+          >
+            Vaciar día
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={disabled}
+            loading={disabled}
+            onClick={onRegenerateDay}
+          >
+            Regenerar solo este día
+          </Button>
+        </div>
       </div>
+
+      {day.day_end_source === "flight" && tripSettings.flight_departure ? (
+        <div
+          className={cn(
+            surfaces.inset,
+            "mt-4 border border-amber-500/20 bg-amber-950/20 p-4",
+          )}
+        >
+          <p className={typography.sectionTitle}>Traslado al aeropuerto</p>
+          <p className={cn(typography.body, "mt-2")}>
+            Última actividad antes de las{" "}
+            <span className="font-medium text-white">
+              {formatDayEndMinutes(day.day_end_minutes)}
+            </span>
+            {formatTripTimeFromIso(tripSettings.flight_departure, tripSettings.timezone)
+              ? ` para el vuelo de regreso a las ${formatTripTimeFromIso(
+                  tripSettings.flight_departure,
+                  tripSettings.timezone,
+                )}`
+              : ""}
+            {" "}
+            (margen de {tripSettings.airport_transfer_minutes} min al aeropuerto).
+          </p>
+        </div>
+      ) : null}
 
       {day.items.length === 0 ? (
         <EmptyState
@@ -574,4 +639,20 @@ function DayPlanPanel({
       )}
     </div>
   );
+}
+
+function formatFlightDepartureLabel(
+  iso: string | null | undefined,
+  timezone: string,
+): string | null {
+  if (!iso?.trim()) {
+    return null;
+  }
+
+  try {
+    return formatTripDateTime(iso, timezone);
+  } catch (error) {
+    console.error("[planificar] Failed to format flight departure:", error);
+    return null;
+  }
 }

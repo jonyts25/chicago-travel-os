@@ -108,7 +108,7 @@ export function resolveDayConstraints(
     dayEndMinutes = manualOverride;
     dayEndSource = "manual";
   } else {
-    const flightEndMinutes = computeFlightDayEndMinutes(day, trip, allDays);
+    const flightEndMinutes = safeComputeFlightDayEndMinutes(day, trip, allDays);
     if (flightEndMinutes != null) {
       dayEndMinutes = flightEndMinutes;
       dayEndSource = "flight";
@@ -127,6 +127,37 @@ export function resolveDayConstraints(
     dayActiveMinutesLimit,
     dayEndSource,
   };
+}
+
+function safeComputeFlightDayEndMinutes(
+  day: ItineraryDayConstraintsInput,
+  trip: TripDayConstraintsInput,
+  allDays: ItineraryDayConstraintsInput[],
+): number | null {
+  try {
+    const minutes = computeFlightDayEndMinutes(day, trip, allDays);
+    if (minutes == null || !Number.isFinite(minutes)) {
+      return null;
+    }
+
+    if (minutes < 0 || minutes > 24 * 60) {
+      console.error(
+        "[day-constraints] Invalid flight day end minutes:",
+        minutes,
+        { dayNumber: day.dayNumber, flightDeparture: trip.flightDeparture },
+      );
+      return null;
+    }
+
+    return minutes;
+  } catch (error) {
+    console.error(
+      "[day-constraints] Flight day end calculation failed:",
+      error,
+      { dayNumber: day.dayNumber, flightDeparture: trip.flightDeparture },
+    );
+    return null;
+  }
 }
 
 function computeFlightDayEndMinutes(
