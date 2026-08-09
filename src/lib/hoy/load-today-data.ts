@@ -3,6 +3,7 @@ import { ensureItineraryDays } from "@/lib/itinerary/ensure-days";
 import {
   getTripDayFromStartDate,
   normalizeItemStatus,
+  resolveTripTodayPhase,
   sortTodayBlocks,
   type TodayBlock,
   type TodayDayData,
@@ -14,6 +15,7 @@ import {
   TRIP_TRAVEL_SELECT,
   normalizeTripTravelSettings,
 } from "@/lib/trips/travel-info";
+import { formatCalendarDateLabel, parseDateOnly } from "@/lib/trips/trip-calendar";
 import { createClient } from "@/lib/supabase/server";
 
 type ItemRow = {
@@ -59,7 +61,7 @@ export async function loadTodayPageContext(): Promise<{
     await Promise.all([
       supabase
         .from("trips")
-        .select(`id, start_date, ${TRIP_TRAVEL_SELECT}`)
+        .select(`id, ${TRIP_TRAVEL_SELECT}`)
         .eq("id", CHICAGO_TRIP_ID)
         .maybeSingle(),
       ensureItineraryDays(CHICAGO_TRIP_ID),
@@ -73,13 +75,24 @@ export async function loadTodayPageContext(): Promise<{
     return { context: null, error: daysError };
   }
 
-  const startDate = (trip as Trip | null)?.start_date ?? null;
-  const autoDayNumber = startDate ? getTripDayFromStartDate(startDate) : null;
+  const startDateRaw = (trip as Trip | null)?.start_date ?? null;
+  const startDate = startDateRaw
+    ? parseDateOnly(startDateRaw)
+      ? startDateRaw.trim().match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? startDateRaw
+      : null
+    : null;
+  const tripPhase = resolveTripTodayPhase(startDate);
+  const autoDayNumber =
+    tripPhase === "during_trip" && startDate
+      ? getTripDayFromStartDate(startDate)
+      : null;
   const tripSettings = normalizeTripTravelSettings(trip);
 
   return {
     context: {
       startDate,
+      startDateLabel: formatCalendarDateLabel(startDate),
+      tripPhase,
       autoDayNumber,
       days: days.map((day) => ({ id: day.id, day_number: day.day_number })),
       tripSettings,

@@ -1,5 +1,6 @@
-import { CHICAGO_TRIP_ID, TRIP_DAY_COUNT } from "@/lib/constants";
+import { TRIP_DAY_COUNT } from "@/lib/constants";
 import type { TripTravelSettings } from "@/lib/trips/travel-info";
+import { formatCalendarDateLabel, parseDateOnly } from "@/lib/trips/trip-calendar";
 
 export const ITINERARY_ITEM_STATUS_PENDING = "pending" as const;
 export const ITINERARY_ITEM_STATUS_DONE = "done" as const;
@@ -36,8 +37,16 @@ export type TodayDayData = {
   blocks: TodayBlock[];
 };
 
+export type TripTodayPhase =
+  | "no_start_date"
+  | "before_trip"
+  | "during_trip"
+  | "after_trip";
+
 export type TodayPageContext = {
   startDate: string | null;
+  startDateLabel: string | null;
+  tripPhase: TripTodayPhase;
   autoDayNumber: number | null;
   days: { id: string; day_number: number }[];
   tripSettings: TripTravelSettings;
@@ -75,26 +84,30 @@ export function getTripDayFromStartDate(
   return diffDays;
 }
 
-function parseDateOnly(value: string): Date | null {
-  const match = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) {
-    return null;
+export function resolveTripTodayPhase(
+  startDate: string | null | undefined,
+  referenceDate: Date = new Date(),
+): TripTodayPhase {
+  if (!startDate?.trim()) {
+    return "no_start_date";
   }
 
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const parsed = new Date(year, month - 1, day);
+  const start = parseDateOnly(startDate);
+  const today = parseDateOnly(formatDateOnly(referenceDate));
 
-  if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return null;
+  if (!start || !today) {
+    return "no_start_date";
   }
 
-  return parsed;
+  if (today.getTime() < start.getTime()) {
+    return "before_trip";
+  }
+
+  if (getTripDayFromStartDate(startDate, referenceDate) != null) {
+    return "during_trip";
+  }
+
+  return "after_trip";
 }
 
 function formatDateOnly(date: Date): string {

@@ -72,26 +72,47 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
     });
   }
 
+  function readDatetimeField(formData: FormData, name: string): string | null {
+    const raw = formData.get(name);
+    if (typeof raw !== "string") {
+      return null;
+    }
+
+    return fromDatetimeLocalValue(raw);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setTechnicalError(null);
 
-    const transferMinutes = Number.parseInt(String(form.airport_transfer_minutes), 10);
+    const formData = new FormData(event.currentTarget);
+    const transferMinutes = Number.parseInt(
+      String(formData.get("airport_transfer_minutes") ?? form.airport_transfer_minutes),
+      10,
+    );
     if (!Number.isFinite(transferMinutes) || transferMinutes < 0) {
       setTechnicalError("Los minutos de traslado al aeropuerto deben ser un número válido.");
       return;
     }
 
+    const startDateRaw = formData.get("start_date");
+    const start_date =
+      typeof startDateRaw === "string"
+        ? fromDateInputValue(startDateRaw)
+        : form.start_date;
+
     startSave(async () => {
       const result = await updateTripSettingsAction({
-        start_date: form.start_date,
-        flight_arrival: form.flight_arrival,
-        flight_departure: form.flight_departure,
-        flight_outbound_number: form.flight_outbound_number?.trim() || null,
-        flight_return_number: form.flight_return_number?.trim() || null,
-        hotel_checkin: form.hotel_checkin,
-        hotel_checkout: form.hotel_checkout,
-        base_location: form.base_location?.trim() || null,
+        start_date,
+        flight_arrival: readDatetimeField(formData, "flight_arrival"),
+        flight_departure: readDatetimeField(formData, "flight_departure"),
+        flight_outbound_number:
+          String(formData.get("flight_outbound_number") ?? "").trim() || null,
+        flight_return_number:
+          String(formData.get("flight_return_number") ?? "").trim() || null,
+        hotel_checkin: readDatetimeField(formData, "hotel_checkin"),
+        hotel_checkout: readDatetimeField(formData, "hotel_checkout"),
+        base_location: String(formData.get("base_location") ?? "").trim() || null,
         airport_transfer_minutes: transferMinutes,
       });
 
@@ -155,6 +176,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Fecha de inicio del viaje (Día 1)
             <input
               id="trip-start-date"
+              name="start_date"
               type="date"
               value={toDateInputValue(form.start_date)}
               onChange={(event) =>
@@ -176,6 +198,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Llegada a Chicago (ida)
             <input
               id="flight-arrival"
+              name="flight_arrival"
               type="datetime-local"
               value={toDatetimeLocalValue(form.flight_arrival)}
               onChange={(event) =>
@@ -189,6 +212,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Número de vuelo de ida
             <input
               id="flight-outbound-number"
+              name="flight_outbound_number"
               type="text"
               value={form.flight_outbound_number ?? ""}
               onChange={(event) => updateField("flight_outbound_number", event.target.value)}
@@ -201,6 +225,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Salida de Chicago (vuelta)
             <input
               id="flight-departure"
+              name="flight_departure"
               type="datetime-local"
               value={toDatetimeLocalValue(form.flight_departure)}
               onChange={(event) =>
@@ -214,6 +239,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Número de vuelo de regreso
             <input
               id="flight-return-number"
+              name="flight_return_number"
               type="text"
               value={form.flight_return_number ?? ""}
               onChange={(event) => updateField("flight_return_number", event.target.value)}
@@ -230,6 +256,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Check-in
             <input
               id="hotel-checkin"
+              name="hotel_checkin"
               type="datetime-local"
               value={toDatetimeLocalValue(form.hotel_checkin)}
               onChange={(event) =>
@@ -243,6 +270,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Check-out
             <input
               id="hotel-checkout"
+              name="hotel_checkout"
               type="datetime-local"
               value={toDatetimeLocalValue(form.hotel_checkout)}
               onChange={(event) =>
@@ -256,6 +284,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Dirección del hotel / base
             <input
               id="base-location"
+              name="base_location"
               type="text"
               value={form.base_location ?? ""}
               onChange={(event) => updateField("base_location", event.target.value)}
@@ -272,6 +301,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
             Minutos al aeropuerto + margen
             <input
               id="airport-transfer-minutes"
+              name="airport_transfer_minutes"
               type="number"
               min={0}
               step={5}
