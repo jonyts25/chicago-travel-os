@@ -26,7 +26,11 @@ import {
   formatDayStartSourceLabel,
 } from "@/lib/itinerary/day-constraints";
 import { formatPlanningDayTabLabel } from "@/lib/trips/trip-calendar";
-import { formatTripDateTime, formatTripTimeFromIso } from "@/lib/trips/travel-info";
+import {
+  formatFlightDepartureCutoffTime,
+  formatFlightDepartureDateTime,
+  formatFlightDepartureTime,
+} from "@/lib/trips/travel-info";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
@@ -493,10 +497,24 @@ function DayPlanPanel({
     (sum, item) => sum + (item.place.duration_minutes ?? 0),
     0,
   );
-  const flightDepartureLabel = formatFlightDepartureLabel(
+  const flightDepartureTimeLabel = formatFlightDepartureTime(
     tripSettings.flight_departure,
     tripSettings.timezone,
   );
+  const flightDepartureDateTimeLabel = formatFlightDepartureDateTime(
+    tripSettings.flight_departure,
+    tripSettings.timezone,
+  );
+  const flightCutoffTimeLabel =
+    day.day_end_source === "flight"
+      ? formatFlightDepartureCutoffTime(
+          tripSettings.flight_departure,
+          tripSettings.airport_transfer_minutes,
+          tripSettings.timezone,
+        )
+      : null;
+  const displayedDayEndLabel =
+    flightCutoffTimeLabel ?? formatDayEndMinutes(day.day_end_minutes);
 
   return (
     <div className="mt-4">
@@ -513,9 +531,9 @@ function DayPlanPanel({
           <p className={cn(typography.muted, "mt-1")}>
             Inicio: {formatDayEndMinutes(day.day_start_minutes)} (
             {formatDayStartSourceLabel(day.day_start_source)}) · Hora límite:{" "}
-            {formatDayEndMinutes(day.day_end_minutes)} ({formatDayEndSourceLabel(day.day_end_source)})
-            {day.day_end_source === "flight" && flightDepartureLabel
-              ? ` · vuelo ${flightDepartureLabel}`
+            {displayedDayEndLabel} ({formatDayEndSourceLabel(day.day_end_source)})
+            {day.day_end_source === "flight" && flightDepartureDateTimeLabel
+              ? ` · vuelo ${flightDepartureDateTimeLabel}`
               : ""}
           </p>
         </div>
@@ -551,14 +569,9 @@ function DayPlanPanel({
           <p className={typography.sectionTitle}>Traslado al aeropuerto</p>
           <p className={cn(typography.body, "mt-2")}>
             Última actividad antes de las{" "}
-            <span className="font-medium text-white">
-              {formatDayEndMinutes(day.day_end_minutes)}
-            </span>
-            {formatTripTimeFromIso(tripSettings.flight_departure, tripSettings.timezone)
-              ? ` para el vuelo de regreso a las ${formatTripTimeFromIso(
-                  tripSettings.flight_departure,
-                  tripSettings.timezone,
-                )}`
+            <span className="font-medium text-white">{displayedDayEndLabel}</span>
+            {flightDepartureTimeLabel
+              ? ` para el vuelo de regreso a las ${flightDepartureTimeLabel}`
               : ""}
             {" "}
             (margen de {tripSettings.airport_transfer_minutes} min al aeropuerto).
@@ -639,20 +652,4 @@ function DayPlanPanel({
       )}
     </div>
   );
-}
-
-function formatFlightDepartureLabel(
-  iso: string | null | undefined,
-  timezone: string,
-): string | null {
-  if (!iso?.trim()) {
-    return null;
-  }
-
-  try {
-    return formatTripDateTime(iso, timezone);
-  } catch (error) {
-    console.error("[planificar] Failed to format flight departure:", error);
-    return null;
-  }
 }
