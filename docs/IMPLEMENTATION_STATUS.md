@@ -15,7 +15,7 @@ Este documento resume las funcionalidades recientes, su estado de merge y cómo 
 | Sugerencias de lugares con IA | **Mergeado — listo para probar** | PR #5 · `acf3ad5` | `/preferencias` + panel **Sugerir lugares** en `/planificar` |
 | Restricciones por día (focus + hora límite) | **Mergeado — listo para probar** | PR #6 · `44130f7` | `/planificar` (focus/hora por día) + vuelo en `/preferencias` |
 | Datos de vuelo/hotel (manual + IA) | **Mergeado — listo para probar** | PR #7 · `6c4e79b` | `/preferencias` → **Datos del viaje**; resumen en `/dashboard` y `/hoy` |
-| Fechas reales en `/planificar` | **Mergeado — listo para probar** | ver abajo | `/preferencias` (fecha inicio) → `/planificar` (tabs con fechas) |
+| Fechas reales en `/planificar` | **Mergeado — listo para probar** | `096d3d3` | `/preferencias` (fecha inicio) → `/planificar` (tabs con fechas) |
 | Notificaciones push late check-in | **Mergeado — listo para probar** | PR #8 · `67c79b5` | `/dashboard` (push + toggle) + cron API |
 | Pasada UI/UX (design system) | **Mergeado — listo para probar** | `4170f7c` | Toda la app (tabs, toasts, estados vacío/error/loading) |
 
