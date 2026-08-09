@@ -24,7 +24,7 @@ export type ParsedGooglePlace = {
   maps_url: string | null;
   notes: string | null;
   category: PlaceCategory | null;
-  estimated_duration_minutes: number | null;
+  duration_minutes: number | null;
 };
 
 export type ExistingPlace = {

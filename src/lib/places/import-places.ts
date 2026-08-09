@@ -133,7 +133,7 @@ export async function importGoogleMapsPlaces(
     maps_url: place.maps_url,
     notes: place.notes,
     category: place.category,
-    estimated_duration_minutes: place.estimated_duration_minutes,
+    duration_minutes: place.duration_minutes,
     status: PLACE_STATUS_UNPLANNED,
   }));
 

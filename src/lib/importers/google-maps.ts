@@ -203,7 +203,7 @@ function parseGeoJsonFeature(feature: GeoJsonFeature): ParsedGooglePlace | null 
     maps_url: mapsUrl,
     notes: null,
     category: null,
-    estimated_duration_minutes: null,
+    duration_minutes: null,
   };
 }
 
@@ -247,7 +247,7 @@ function parseCsvRow(headers: string[], values: string[]): ParsedGooglePlace | n
     maps_url: mapsUrl,
     notes: buildNotesFromCsvRecord(record),
     category: null,
-    estimated_duration_minutes: null,
+    duration_minutes: null,
   };
 }
 

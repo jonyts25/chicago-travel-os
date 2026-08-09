@@ -138,7 +138,7 @@ function normalizeCategory(value: unknown): PlaceCategory | null {
 }
 
 export function applyAIEnrichment(
-  place: { name: string; category: PlaceCategory | null; estimated_duration_minutes: number | null },
+  place: { name: string; category: PlaceCategory | null; duration_minutes: number | null },
   enrichment: AIPlaceEnrichment | undefined,
 ): { withoutCategory: boolean } {
   if (!enrichment?.category) {
@@ -147,7 +147,7 @@ export function applyAIEnrichment(
 
   place.name = enrichment.cleanName || place.name;
   place.category = enrichment.category;
-  place.estimated_duration_minutes =
+  place.duration_minutes =
     CATEGORY_DURATION_MINUTES[enrichment.category];
 
   return { withoutCategory: false };
