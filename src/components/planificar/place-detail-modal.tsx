@@ -15,9 +15,9 @@ import {
   type PlaceDetail,
 } from "@/lib/places/place-detail";
 import {
-  datetimeLocalToIso,
   formatCoordinates,
-  toDatetimeLocalValue,
+  timeInputToDbValue,
+  toTimeInputValue,
 } from "@/lib/places/place-format";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 
@@ -90,7 +90,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
     setNotes(detail.notes ?? "");
     setOpeningHours(detail.opening_hours ?? "");
     setReservationRequired(detail.reservation_required);
-    setReservationStartTime(toDatetimeLocalValue(detail.itinerary?.startTime));
+    setReservationStartTime(toTimeInputValue(detail.itinerary?.startTime));
     setAssignToDayId(detail.itinerary?.itineraryDayId ?? days[0]?.id ?? "");
   }
 
@@ -118,6 +118,14 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         return;
       }
 
+      if (reservationRequired) {
+        const dbTime = timeInputToDbValue(reservationStartTime);
+        if (!dbTime) {
+          setError("Indica una hora válida (HH:MM).");
+          return;
+        }
+      }
+
       const result = await updatePlaceAction({
         placeId,
         name,
@@ -129,7 +137,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         reservation_required: reservationRequired,
         opening_hours: openingHours,
         reservation_start_time: reservationRequired
-          ? datetimeLocalToIso(reservationStartTime)
+          ? timeInputToDbValue(reservationStartTime)
           : null,
         assign_to_day_id:
           reservationRequired && place?.status === "unplanned"
@@ -333,9 +341,9 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
 
               {reservationRequired ? (
                 <div className="mt-4 flex flex-col gap-3">
-                  <Field label="Fecha y hora de reserva">
+                  <Field label="Hora de reserva">
                     <input
-                      type="datetime-local"
+                      type="time"
                       value={reservationStartTime}
                       onChange={(event) => setReservationStartTime(event.target.value)}
                       required
@@ -364,10 +372,13 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
                     </Field>
                   ) : place.itinerary ? (
                     <p className="text-sm text-slate-400">
-                      Asignado al{" "}
+                      Día de la reserva:{" "}
                       <span className="font-medium text-slate-200">
                         Día {place.itinerary.dayNumber}
                       </span>
+                      {place.itinerary.startTime
+                        ? ` · hora guardada: ${toTimeInputValue(place.itinerary.startTime)}`
+                        : ""}
                       {place.itinerary.isFixed ? " · fijado en el itinerario" : ""}
                     </p>
                   ) : null}

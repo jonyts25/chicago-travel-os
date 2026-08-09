@@ -12,6 +12,7 @@ import type {
   UpdatePlaceInput,
 } from "@/lib/places/place-detail";
 import { hasCoordinates } from "@/lib/places/schema";
+import { timeInputToDbValue } from "@/lib/places/place-format";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -128,7 +129,7 @@ export async function updatePlaceAction(
   if (input.reservation_required && !input.reservation_start_time) {
     return {
       ok: false,
-      error: "Indica fecha y hora para la reserva fija.",
+      error: "Indica la hora de la reserva fija.",
     };
   }
 
@@ -181,10 +182,21 @@ export async function updatePlaceAction(
     return { ok: false, error: updatePlaceError.message };
   }
 
+  const normalizedReservationTime = input.reservation_required
+    ? normalizeReservationTime(input.reservation_start_time)
+    : null;
+
+  if (input.reservation_required && !normalizedReservationTime) {
+    return {
+      ok: false,
+      error: "Indica una hora válida (HH:MM).",
+    };
+  }
+
   const reservationResult = await syncReservationItineraryItem(supabase, {
     placeId: input.placeId,
     reservationRequired: input.reservation_required,
-    reservationStartTime: input.reservation_start_time,
+    reservationStartTime: normalizedReservationTime,
     assignToDayId: input.assign_to_day_id,
     isUnplanned,
   });
@@ -273,6 +285,24 @@ export async function deletePlaceAction(placeId: string): Promise<PlaceMutationR
 
   revalidatePlaceViews();
   return { ok: true };
+}
+
+function normalizeReservationTime(value: string | null): string | null {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const normalized = timeInputToDbValue(value) ?? timeInputToDbValue(toTimeOnlyFromDb(value));
+  return normalized;
+}
+
+function toTimeOnlyFromDb(value: string): string {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) {
+    return value;
+  }
+
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
 }
 
 async function syncReservationItineraryItem(
