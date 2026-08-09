@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -35,8 +36,11 @@ export default async function DashboardPage() {
           <span className="font-medium text-slate-200">{user.email}</span>
         </p>
         <p className="mt-4 text-sm text-slate-500">
-          Fase 0 lista. Aquí irá el planificador del viaje de 4 días cuando
-          conectes Supabase y despliegues en Railway.
+          Fase 1: importación de lugares desde Google Takeout disponible en{" "}
+          <Link href="/import" className="font-medium text-blue-400 hover:text-blue-300">
+            /import
+          </Link>
+          .
         </p>
       </section>
     </div>

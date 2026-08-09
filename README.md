@@ -67,4 +67,15 @@ La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTP
 
 ## Fase actual
 
-Fase 0: setup inicial (Next.js, Tailwind, PWA básica, Supabase Auth con email/contraseña, `/dashboard` protegido). Mapa, importación de lugares y optimizador pendientes.
+Fase 1: importación de lugares desde Google Takeout en `/import` (CSV o `Saved Places.json`). Mapa y edición de lugares pendientes.
+
+### Importar lugares (Google Takeout)
+
+1. Ve a [Google Takeout](https://takeout.google.com/) → desmarca todo excepto **Maps**.
+2. Elige una de estas opciones de exportación:
+   - **Maps (your places)** → genera `Saved Places.json` (GeoJSON con coordenadas).
+   - **Saved** → genera CSVs por lista (ej. `Chicago.csv`, `Want to go.csv`) con columnas `Title`, `URL`, etc.
+3. Descomprime el ZIP y sube **un archivo** `.json` o `.csv` en `/import`.
+4. Revisa el resumen: importados vs duplicados.
+
+Los duplicados se detectan por `google_place_id` o por proximidad de coordenadas (~50 m) dentro del trip Chicago.
