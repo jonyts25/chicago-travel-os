@@ -1,3 +1,4 @@
+import { getNominatimUserAgent } from "@/lib/geocoding/nominatim";
 import { getDistanceMeters } from "@/lib/hoy/geo-distance";
 import { inferOsmFiltersFromQuery, type OsmTagFilter } from "@/lib/overpass/infer-osm-filters";
 
@@ -41,9 +42,11 @@ export async function queryNearbyPois(input: {
     const response = await fetch(OVERPASS_ENDPOINT, {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "User-Agent": getNominatimUserAgent(),
+        Accept: "application/json",
       },
-      body: `data=${encodeURIComponent(overpassQuery)}`,
+      body: new URLSearchParams({ data: overpassQuery }).toString(),
       signal: AbortSignal.timeout(25_000),
     });
 
