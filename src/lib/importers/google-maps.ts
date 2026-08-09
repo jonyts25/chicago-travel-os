@@ -113,6 +113,42 @@ export function extractGoogleFeatureIdFromMapsUrl(
 }
 
 /**
+ * Extracts map center coordinates from Google Maps URLs with an @lat,lng segment.
+ * Example: .../@41.8487603,-87.9530109,16z/data=...
+ */
+export function extractCoordinatesFromMapsUrl(
+  url: string | null | undefined,
+): { lat: number; lng: number } | null {
+  if (!url?.trim()) {
+    return null;
+  }
+
+  const match = url.trim().match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:[,/]|$)/);
+  if (!match?.[1] || !match[2]) {
+    return null;
+  }
+
+  return normalizeCoordinates(Number(match[1]), Number(match[2]));
+}
+
+function applyMapsUrlCoordinates(
+  mapsUrl: string | null,
+  lat: number | null,
+  lng: number | null,
+): { lat: number | null; lng: number | null } {
+  if (lat != null && lng != null) {
+    return { lat, lng };
+  }
+
+  const fromUrl = extractCoordinatesFromMapsUrl(mapsUrl);
+  if (!fromUrl) {
+    return { lat, lng };
+  }
+
+  return { lat: fromUrl.lat, lng: fromUrl.lng };
+}
+
+/**
  * Tries to read the place name from a Google Maps share URL path segment.
  * Example: /maps/place/Art+Institute+of+Chicago/...
  */
@@ -182,13 +218,15 @@ export function parsePlaceFromMapsUrl(
     };
   }
 
+  const { lat, lng } = applyMapsUrlCoordinates(trimmedUrl, null, null);
+
   return {
     ok: true,
     extractedName,
     place: {
       name: resolvedName,
-      lat: null,
-      lng: null,
+      lat,
+      lng,
       address: null,
       google_place_id: googlePlaceId,
       maps_url: trimmedUrl,
@@ -350,11 +388,16 @@ function parseGeoJsonFeature(feature: GeoJsonFeature): ParsedGooglePlace | null 
     geometryCoords?.lat ?? propertyCoords?.lat ?? null,
     geometryCoords?.lng ?? propertyCoords?.lng ?? null,
   );
+  const urlCoords = applyMapsUrlCoordinates(
+    mapsUrl,
+    normalizedCoords?.lat ?? null,
+    normalizedCoords?.lng ?? null,
+  );
 
   return {
     name,
-    lat: normalizedCoords?.lat ?? null,
-    lng: normalizedCoords?.lng ?? null,
+    lat: urlCoords.lat,
+    lng: urlCoords.lng,
     address,
     google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
@@ -394,11 +437,12 @@ function parseCsvRow(headers: string[], values: string[]): ParsedGooglePlace | n
   }
 
   const mapsUrl = readString(record.url);
+  const urlCoords = applyMapsUrlCoordinates(mapsUrl, null, null);
 
   return {
     name,
-    lat: null,
-    lng: null,
+    lat: urlCoords.lat,
+    lng: urlCoords.lng,
     address: null,
     google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
