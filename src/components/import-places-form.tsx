@@ -82,7 +82,11 @@ export function ImportPlacesForm() {
               {result.errors.map((error) => (
                 <li
                   key={error}
-                  className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200"
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    result.imported > 0
+                      ? "border-amber-500/40 bg-amber-950/40 text-amber-100"
+                      : "border-red-500/40 bg-red-950/40 text-red-200"
+                  }`}
                 >
                   {error}
                 </li>

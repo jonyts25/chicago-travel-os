@@ -5,13 +5,12 @@ export type ParsedGooglePlace = {
   address: string | null;
   google_place_id: string | null;
   maps_url: string | null;
+  notes: string | null;
+  category: string | null;
 };
 
 export type ExistingPlace = {
   id: string;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
   google_place_id: string | null;
 };
 

@@ -1,4 +1,3 @@
-import { PLACE_COORDINATE_DEDUP_METERS } from "@/lib/constants";
 import type { ExistingPlace, ParsedGooglePlace } from "@/lib/importers/types";
 
 type GeoJsonFeature = {
@@ -13,6 +12,22 @@ type GeoJsonFeature = {
 type GeoJsonCollection = {
   type?: string;
   features?: GeoJsonFeature[];
+};
+
+const CSV_FIELD_ALIASES: Record<string, string> = {
+  titulo: "title",
+  title: "title",
+  name: "title",
+  nota: "note",
+  note: "note",
+  url: "url",
+  link: "url",
+  etiquetas: "tags",
+  tags: "tags",
+  comentario: "comment",
+  comment: "comment",
+  address: "address",
+  direccion: "address",
 };
 
 export function parseGoogleMapsExport(
@@ -38,19 +53,42 @@ export function partitionPlacesByDuplicates(
 ): { toInsert: ParsedGooglePlace[]; duplicates: ParsedGooglePlace[] } {
   const toInsert: ParsedGooglePlace[] = [];
   const duplicates: ParsedGooglePlace[] = [];
-  const known: ExistingPlace[] = [...existing];
+  const knownIds = new Set(
+    existing
+      .map((place) => place.google_place_id)
+      .filter((id): id is string => Boolean(id)),
+  );
 
   for (const place of incoming) {
-    if (findDuplicate(place, known)) {
+    if (!place.google_place_id) {
+      continue;
+    }
+
+    if (knownIds.has(place.google_place_id)) {
       duplicates.push(place);
       continue;
     }
 
     toInsert.push(place);
-    known.push(parsedPlaceToExistingShape(place));
+    knownIds.add(place.google_place_id);
   }
 
   return { toInsert, duplicates };
+}
+
+/**
+ * Extracts the Google feature id (0xHEX:0xHEX) from Takeout Maps URLs.
+ * Example: .../data=!4m2!3m1!1s0x880fd3932a5c4c29:0x7a5707ce50c03ef1
+ */
+export function extractGoogleFeatureIdFromMapsUrl(
+  url: string | null | undefined,
+): string | null {
+  if (!url) {
+    return null;
+  }
+
+  const match = url.match(/!1s(0x[a-fA-F0-9]+:0x[a-fA-F0-9]+)/);
+  return match?.[1] ?? null;
 }
 
 function detectFormat(content: string, filename?: string): "json" | "csv" {
@@ -151,30 +189,20 @@ function parseGeoJsonFeature(feature: GeoJsonFeature): ParsedGooglePlace | null 
 
   const geometryCoords = readGeometryCoordinates(feature.geometry?.coordinates);
   const propertyCoords = readLocationCoordinates(location);
-  const urlCoords = extractCoordinatesFromUrl(mapsUrl);
-
-  const latitude =
-    geometryCoords?.latitude ??
-    propertyCoords?.latitude ??
-    urlCoords?.latitude ??
-    null;
-  const longitude =
-    geometryCoords?.longitude ??
-    propertyCoords?.longitude ??
-    urlCoords?.longitude ??
-    null;
-
-  const normalizedCoords = normalizeCoordinates(latitude, longitude);
+  const normalizedCoords = normalizeCoordinates(
+    geometryCoords?.latitude ?? propertyCoords?.latitude ?? null,
+    geometryCoords?.longitude ?? propertyCoords?.longitude ?? null,
+  );
 
   return {
     name,
     latitude: normalizedCoords?.latitude ?? null,
     longitude: normalizedCoords?.longitude ?? null,
     address,
-    google_place_id:
-      extractGooglePlaceId(mapsUrl) ??
-      extractGooglePlaceId(readString(properties["Google Maps URL"])),
+    google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
+    notes: null,
+    category: null,
   };
 }
 
@@ -185,7 +213,7 @@ function parseCsvExport(content: string): ParsedGooglePlace[] {
   }
 
   const [headerRow, ...dataRows] = rows;
-  const headers = headerRow.map((header) => header.trim().toLowerCase());
+  const headers = headerRow.map((header) => normalizeCsvHeader(header));
 
   const places: ParsedGooglePlace[] = [];
 
@@ -202,41 +230,65 @@ function parseCsvExport(content: string): ParsedGooglePlace[] {
 function parseCsvRow(headers: string[], values: string[]): ParsedGooglePlace | null {
   const record = mapCsvRecord(headers, values);
 
-  const name = readString(record.title ?? record.name);
+  const name = readString(record.title);
   if (!name) {
     return null;
   }
 
-  const mapsUrl = readString(record.url ?? record.link);
-  const address = readString(record.address);
-  const urlCoords = extractCoordinatesFromUrl(mapsUrl);
-
-  const latitude = parseCoordinate(record.latitude ?? record.lat) ?? urlCoords?.latitude ?? null;
-  const longitude =
-    parseCoordinate(record.longitude ?? record.lng ?? record.lon) ??
-    urlCoords?.longitude ??
-    null;
-
-  const normalizedCoords = normalizeCoordinates(latitude, longitude);
+  const mapsUrl = readString(record.url);
 
   return {
     name,
-    latitude: normalizedCoords?.latitude ?? null,
-    longitude: normalizedCoords?.longitude ?? null,
-    address,
-    google_place_id: extractGooglePlaceId(mapsUrl),
+    latitude: null,
+    longitude: null,
+    address: null,
+    google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
+    notes: buildNotesFromCsvRecord(record),
+    category: null,
   };
+}
+
+function buildNotesFromCsvRecord(record: Record<string, string>): string | null {
+  const parts: string[] = [];
+
+  const note = readString(record.note);
+  const tags = readString(record.tags);
+  const comment = readString(record.comment);
+
+  if (note) {
+    parts.push(`Nota: ${note}`);
+  }
+  if (tags) {
+    parts.push(`Etiquetas: ${tags}`);
+  }
+  if (comment) {
+    parts.push(`Comentario: ${comment}`);
+  }
+
+  return parts.length > 0 ? parts.join("\n") : null;
 }
 
 function mapCsvRecord(headers: string[], values: string[]): Record<string, string> {
   const record: Record<string, string> = {};
 
   headers.forEach((header, index) => {
-    record[header] = values[index]?.trim() ?? "";
+    const canonical = CSV_FIELD_ALIASES[header] ?? header;
+    const value = values[index]?.trim() ?? "";
+    if (value) {
+      record[canonical] = value;
+    }
   });
 
   return record;
+}
+
+function normalizeCsvHeader(header: string): string {
+  return header
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function parseCsvRows(content: string): string[][] {
@@ -287,84 +339,6 @@ function parseCsvRows(content: string): string[][] {
   }
 
   return rows;
-}
-
-export function extractGooglePlaceId(url: string | null | undefined): string | null {
-  if (!url) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(url);
-    const placeId = parsedUrl.searchParams.get("place_id");
-    if (placeId) {
-      return placeId;
-    }
-
-    const queryPlaceId = parsedUrl.searchParams.get("q");
-    if (queryPlaceId?.startsWith("place_id:")) {
-      return queryPlaceId.replace("place_id:", "");
-    }
-
-    const cid = parsedUrl.searchParams.get("cid");
-    if (cid) {
-      return `cid:${cid}`;
-    }
-
-    const ludocid = parsedUrl.searchParams.get("ludocid");
-    if (ludocid) {
-      return `ludocid:${ludocid}`;
-    }
-  } catch {
-    // Fall through to regex parsing for malformed URLs.
-  }
-
-  const hexPairMatch = url.match(/!1s(0x[a-fA-F0-9]+:0x[a-fA-F0-9]+)/);
-  if (hexPairMatch?.[1]) {
-    return hexPairMatch[1];
-  }
-
-  const hexPairMatchAlt = url.match(/(0x[a-fA-F0-9]+:0x[a-fA-F0-9]+)/);
-  if (hexPairMatchAlt?.[1]) {
-    return hexPairMatchAlt[1];
-  }
-
-  const chijMatch = url.match(/(ChI[a-zA-Z0-9_-]{20,})/);
-  if (chijMatch?.[1]) {
-    return chijMatch[1];
-  }
-
-  return null;
-}
-
-export function extractCoordinatesFromUrl(
-  url: string | null | undefined,
-): { latitude: number; longitude: number } | null {
-  if (!url) {
-    return null;
-  }
-
-  const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (atMatch) {
-    return normalizeCoordinates(Number(atMatch[1]), Number(atMatch[2]));
-  }
-
-  const dataMatch = url.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
-  if (dataMatch) {
-    return normalizeCoordinates(Number(dataMatch[1]), Number(dataMatch[2]));
-  }
-
-  const searchMatch = url.match(/\/search\/(-?\d+\.?\d*),\s*\+?(-?\d+\.?\d*)/);
-  if (searchMatch) {
-    return normalizeCoordinates(Number(searchMatch[1]), Number(searchMatch[2]));
-  }
-
-  const llMatch = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-  if (llMatch) {
-    return normalizeCoordinates(Number(llMatch[1]), Number(llMatch[2]));
-  }
-
-  return null;
 }
 
 function readGeometryCoordinates(
@@ -449,73 +423,4 @@ function readString(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function findDuplicate(
-  place: ParsedGooglePlace,
-  existing: ExistingPlace[],
-): ExistingPlace | null {
-  if (place.google_place_id) {
-    const byPlaceId = existing.find(
-      (item) =>
-        item.google_place_id != null &&
-        item.google_place_id === place.google_place_id,
-    );
-    if (byPlaceId) {
-      return byPlaceId;
-    }
-  }
-
-  if (place.latitude != null && place.longitude != null) {
-    const byCoordinates = existing.find((item) => {
-      if (item.latitude == null || item.longitude == null) {
-        return false;
-      }
-
-      return (
-        haversineDistanceMeters(
-          place.latitude!,
-          place.longitude!,
-          item.latitude,
-          item.longitude,
-        ) <= PLACE_COORDINATE_DEDUP_METERS
-      );
-    });
-
-    if (byCoordinates) {
-      return byCoordinates;
-    }
-  }
-
-  return null;
-}
-
-function parsedPlaceToExistingShape(place: ParsedGooglePlace): ExistingPlace {
-  return {
-    id: `pending-${place.name}-${place.google_place_id ?? "no-id"}`,
-    name: place.name,
-    latitude: place.latitude,
-    longitude: place.longitude,
-    google_place_id: place.google_place_id,
-  };
-}
-
-function haversineDistanceMeters(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const earthRadiusMeters = 6371000;
-  const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
-
-  const deltaLat = toRadians(lat2 - lat1);
-  const deltaLng = toRadians(lng2 - lng1);
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(toRadians(lat1)) *
-      Math.cos(toRadians(lat2)) *
-      Math.sin(deltaLng / 2) ** 2;
-
-  return 2 * earthRadiusMeters * Math.asin(Math.sqrt(a));
 }

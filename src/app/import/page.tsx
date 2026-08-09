@@ -40,11 +40,11 @@ export default async function ImportPage() {
 
       <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6">
         <p className="text-sm text-slate-400">
-          Sube un archivo exportado desde Google Takeout (CSV de una lista
-          guardada o <code className="text-slate-300">Saved Places.json</code>
-          ). Los lugares nuevos se guardan con estado{" "}
-          <span className="font-medium text-slate-200">unplanned</span> para el
-          viaje Chicago.
+          Sube un CSV de Google Takeout (columnas{" "}
+          <span className="text-slate-300">Título, Nota, URL, Etiquetas, Comentario</span>
+          ) o un <code className="text-slate-300">Saved Places.json</code>.
+          El identificador se extrae de la URL (<code className="text-slate-300">!1s0x…:0x…</code>
+          ) y las coordenadas se resuelven con Google Places API.
         </p>
 
         <div className="mt-6">
