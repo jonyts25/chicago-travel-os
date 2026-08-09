@@ -54,6 +54,21 @@ export default async function ImportPage() {
           <ImportPlacesForm />
         </div>
       </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-6">
+        <h2 className="text-lg font-medium text-white">Agregar un lugar</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          ¿Encontraste algo nuevo en Google Maps? Pega el enlace sin resubir el
+          CSV completo. En Android también puedes usar Compartir → Chicago Travel
+          si la PWA está instalada.
+        </p>
+        <Link
+          href="/import/agregar"
+          className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+        >
+          Agregar lugar
+        </Link>
+      </section>
     </div>
   );
 }

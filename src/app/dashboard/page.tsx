@@ -40,6 +40,13 @@ export default async function DashboardPage() {
             /import
           </Link>{" "}
           para lugares ·{" "}
+          <Link
+            href="/import/agregar"
+            className="font-medium text-blue-400 hover:text-blue-300"
+          >
+            /import/agregar
+          </Link>{" "}
+          para pegar un enlace ·{" "}
           <Link href="/map" className="font-medium text-blue-400 hover:text-blue-300">
             /map
           </Link>{" "}
