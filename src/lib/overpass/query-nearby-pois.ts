@@ -11,9 +11,18 @@ export type OverpassPoi = {
   distanceMeters: number;
 };
 
-const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
+const OVERPASS_ENDPOINTS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.openstreetmap.ru/api/interpreter",
+] as const;
+
 const DEFAULT_RADIUS_METERS = 1200;
 const MAX_POIS = 45;
+const REQUEST_TIMEOUT_MS = 25_000;
+const MAX_RETRIES_PER_ENDPOINT = 2;
+const RETRY_BACKOFF_MS = [1_000, 2_000];
+const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 
 type OverpassElement = {
   type: "node" | "way" | "relation";
@@ -28,6 +37,10 @@ type OverpassResponse = {
   elements?: OverpassElement[];
 };
 
+type OverpassAttemptResult =
+  | { ok: true; data: OverpassResponse }
+  | { ok: false; retryable: boolean; message: string };
+
 export async function queryNearbyPois(input: {
   lat: number;
   lng: number;
@@ -38,8 +51,54 @@ export async function queryNearbyPois(input: {
   const filters = inferOsmFiltersFromQuery(input.query);
   const overpassQuery = buildOverpassQuery(input.lat, input.lng, radiusMeters, filters);
 
+  let lastError = "No se pudo consultar Overpass.";
+
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    for (let attempt = 0; attempt <= MAX_RETRIES_PER_ENDPOINT; attempt++) {
+      if (attempt > 0) {
+        await delay(RETRY_BACKOFF_MS[attempt - 1] ?? 2_000);
+      }
+
+      const result = await queryOverpassEndpoint(endpoint, overpassQuery);
+
+      if (result.ok) {
+        const pois = parseOverpassElements(
+          result.data.elements ?? [],
+          input.lat,
+          input.lng,
+          radiusMeters,
+        );
+
+        if (pois.length === 0) {
+          return {
+            pois: [],
+            error: "No encontramos lugares cercanos en OpenStreetMap para esta búsqueda.",
+          };
+        }
+
+        return { pois, error: null };
+      }
+
+      lastError = result.message;
+
+      if (!result.retryable) {
+        break;
+      }
+    }
+  }
+
+  return {
+    pois: [],
+    error: `${lastError} Intenta de nuevo en unos segundos — suele ser temporal del servidor público de OpenStreetMap.`,
+  };
+}
+
+async function queryOverpassEndpoint(
+  endpoint: string,
+  overpassQuery: string,
+): Promise<OverpassAttemptResult> {
   try {
-    const response = await fetch(OVERPASS_ENDPOINT, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -47,32 +106,41 @@ export async function queryNearbyPois(input: {
         Accept: "application/json",
       },
       body: new URLSearchParams({ data: overpassQuery }).toString(),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
+      const retryable = RETRYABLE_STATUS_CODES.has(response.status);
       return {
-        pois: [],
-        error: `Overpass API respondió con ${response.status}.`,
+        ok: false,
+        retryable,
+        message: `Overpass respondió con ${response.status}.`,
       };
     }
 
     const data = (await response.json()) as OverpassResponse;
-    const pois = parseOverpassElements(data.elements ?? [], input.lat, input.lng, radiusMeters);
-
-    if (pois.length === 0) {
-      return {
-        pois: [],
-        error: "No encontramos lugares cercanos en OpenStreetMap para esta búsqueda.",
-      };
-    }
-
-    return { pois, error: null };
+    return { ok: true, data };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Error desconocido al consultar Overpass.";
-    return { pois: [], error: message };
+    const retryable =
+      error instanceof Error &&
+      (error.name === "TimeoutError" ||
+        error.name === "AbortError" ||
+        message.toLowerCase().includes("timeout"));
+
+    return {
+      ok: false,
+      retryable,
+      message,
+    };
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function buildOverpassQuery(

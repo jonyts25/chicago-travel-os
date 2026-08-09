@@ -6,18 +6,23 @@ export type PlaceSuggestion = {
   reason: string;
 };
 
-const SYSTEM_PROMPT = `Eres un asistente de viajes para Chicago, Illinois.
+function buildSuggestionSystemPrompt(tripCity: string | null): string {
+  const destination = tripCity?.trim() || "el destino del viaje activo";
+
+  return `Eres un asistente de viajes para ${destination}.
 Responde SOLO con JSON válido, sin markdown ni texto extra.
 Devuelve un array JSON de 5 a 8 objetos con:
-- name: nombre real del lugar en Chicago (negocio, museo, barrio, parque, etc.)
+- name: nombre real del lugar en ${destination} (negocio, museo, barrio, parque, etc.)
 - reason: una frase breve en español explicando por qué encaja con las preferencias
 
 Reglas:
-- Solo lugares plausibles en el área metropolitana de Chicago.
+- Solo lugares plausibles en ${destination} y sus alrededores cercanos.
 - No repitas lugares que ya estén en la lista existente del usuario.
 - Prioriza opciones razonablemente cercanas al hotel/base si se indica.
 - Evita cadenas genéricas sin ancla local cuando haya alternativas mejores.
-- Los nombres deben ser buscables en un mapa (nombre oficial o muy conocido).`;
+- Los nombres deben ser buscables en un mapa (nombre oficial o muy conocido).
+- No sugieras lugares de otras ciudades distintas al destino del viaje.`;
+}
 
 export async function generatePlaceSuggestions(
   context: SuggestionContext,
@@ -39,9 +44,12 @@ export async function generatePlaceSuggestions(
       ? context.existingPlaceNames.slice(0, 120).join("\n")
       : "(ninguno todavía)";
 
+  const destination = context.baseLocation?.trim() || "el destino del viaje activo";
+
   const userPrompt = [
     "Genera sugerencias de lugares para este viaje.",
     "",
+    `Destino / ciudad del viaje: ${destination}`,
     `Hotel / base del viaje: ${context.baseLocation || "(no indicado todavía)"}`,
     "",
     "Preferencias de los viajeros:",
@@ -51,9 +59,13 @@ export async function generatePlaceSuggestions(
     existingLines,
     "",
     "Devuelve entre 5 y 8 sugerencias nuevas en un array JSON.",
+    `Todos los lugares deben estar en ${destination}, no en otras ciudades.`,
   ].join("\n");
 
-  const { text, error } = await callAI(SYSTEM_PROMPT, userPrompt);
+  const { text, error } = await callAI(
+    buildSuggestionSystemPrompt(context.baseLocation),
+    userPrompt,
+  );
 
   if (error) {
     return { suggestions: [], error };
