@@ -1,4 +1,4 @@
-import { PlanningBoard } from "@/components/planificar/planning-board";
+import { UnplannedPlacesBoard } from "@/components/planificar/unplanned-places-board";
 import { CardSkeleton } from "@/components/ui/skeleton";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { PageContainer } from "@/components/ui/page-container";
@@ -9,14 +9,14 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function PlanificarPage() {
+export default async function PlanificarLugaresPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/planificar");
+    redirect("/login?next=/planificar/lugares");
   }
 
   const { data, error } = await loadPlanningBoardData();
@@ -25,18 +25,17 @@ export default async function PlanificarPage() {
     <PageContainer>
       <PageHeader
         eyebrow="Planificación"
-        title="Itinerario de 4 días"
-        subtitle="Organiza el itinerario de 4 días, regenera días y revisa horarios."
+        title="Lugares del viaje"
+        subtitle="Busca nuevos lugares, revisa la bandeja sin planear y reconcilia los que no tienen coordenadas."
       />
 
       {error ? (
-        <ErrorMessage message="No pudimos cargar el itinerario." technicalDetails={error} />
+        <ErrorMessage message="No pudimos cargar los lugares." technicalDetails={error} />
       ) : data ? (
-        <PlanningBoard
+        <UnplannedPlacesBoard
           days={data.days}
-          tripSettings={data.tripSettings}
-          tripAnchorDate={data.tripAnchorDate}
-          tripAnchorSource={data.tripAnchorSource}
+          unplannedPlaces={data.unplannedPlaces}
+          unlocatedPlaces={data.unlocatedPlaces}
         />
       ) : (
         <div className="space-y-4">

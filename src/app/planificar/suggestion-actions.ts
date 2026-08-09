@@ -65,6 +65,7 @@ export async function addSelectedPlaceSuggestionsAction(
 
   if (result.added.length > 0) {
     revalidatePath("/planificar");
+    revalidatePath("/planificar/lugares");
     revalidatePath("/map");
     revalidatePath("/import");
   }

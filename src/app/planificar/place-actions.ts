@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 
 function revalidatePlaceViews(): void {
   revalidatePath("/planificar");
+  revalidatePath("/planificar/lugares");
   revalidatePath("/map");
 }
 
