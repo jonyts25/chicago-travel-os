@@ -6,6 +6,7 @@ import type {
   ExtractedTravelConfirmation,
   TripTravelSettings,
 } from "@/lib/trips/travel-info";
+import { assertTripMember, interpretMutationResult } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -49,34 +50,27 @@ export async function updateUserPreferencesAction(
 
   const normalized = preferences.trim() || null;
 
-  const { data: existing, error: fetchError } = await supabase
+  const { data, error } = await supabase
     .from("users")
+    .upsert(
+      {
+        id: user.id,
+        preferences: normalized,
+      },
+      { onConflict: "id" },
+    )
     .select("id")
-    .eq("id", user.id)
-    .maybeSingle();
+    .single();
 
-  if (fetchError) {
-    return { ok: false, error: fetchError.message };
-  }
+  const mutation = interpretMutationResult(data, error, {
+    table: "users",
+    action: "upsert",
+    permissionHint:
+      "Tu fila en users necesita políticas RLS de SELECT, INSERT y UPDATE para auth.uid() = id.",
+  });
 
-  if (existing) {
-    const { error } = await supabase
-      .from("users")
-      .update({ preferences: normalized })
-      .eq("id", user.id);
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-  } else {
-    const { error } = await supabase.from("users").insert({
-      id: user.id,
-      preferences: normalized,
-    });
-
-    if (error) {
-      return { ok: false, error: error.message };
-    }
+  if (!mutation.ok) {
+    return mutation;
   }
 
   revalidatePath("/preferencias");
@@ -104,7 +98,12 @@ export async function updateTripSettingsAction(
     return { ok: false, error: "Los minutos de traslado deben ser un número válido." };
   }
 
-  const { error } = await supabase
+  const membership = await assertTripMember(supabase, user.id, CHICAGO_TRIP_ID);
+  if (!membership.ok) {
+    return membership;
+  }
+
+  const { data, error } = await supabase
     .from("trips")
     .update({
       start_date: settings.start_date,
@@ -117,10 +116,19 @@ export async function updateTripSettingsAction(
       base_location: settings.base_location?.trim() || null,
       airport_transfer_minutes: settings.airport_transfer_minutes,
     })
-    .eq("id", CHICAGO_TRIP_ID);
+    .eq("id", CHICAGO_TRIP_ID)
+    .select("id")
+    .single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  const mutation = interpretMutationResult(data, error, {
+    table: "trips",
+    action: "update",
+    permissionHint:
+      "Los miembros del viaje necesitan políticas RLS de SELECT y UPDATE en trips (ver supabase/migrations/20260809143000_fix_preferencias_save_rls.sql).",
+  });
+
+  if (!mutation.ok) {
+    return mutation;
   }
 
   revalidatePath("/preferencias");

@@ -2,6 +2,7 @@
 
 import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import type { StoredPushSubscription } from "@/lib/push/schema";
+import { assertTripMember, interpretMutationResult } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
@@ -94,13 +95,27 @@ export async function updateLateCheckinConfirmedAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const { error } = await supabase
+  const membership = await assertTripMember(supabase, user.id, CHICAGO_TRIP_ID);
+  if (!membership.ok) {
+    return membership;
+  }
+
+  const { data, error } = await supabase
     .from("trips")
     .update({ late_checkin_confirmed: confirmed })
-    .eq("id", CHICAGO_TRIP_ID);
+    .eq("id", CHICAGO_TRIP_ID)
+    .select("id")
+    .single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  const mutation = interpretMutationResult(data, error, {
+    table: "trips",
+    action: "update",
+    permissionHint:
+      "Los miembros del viaje necesitan políticas RLS de SELECT y UPDATE en trips.",
+  });
+
+  if (!mutation.ok) {
+    return mutation;
   }
 
   revalidatePath("/dashboard");

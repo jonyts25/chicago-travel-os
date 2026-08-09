@@ -290,7 +290,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
 
         {technicalError ? (
           <ErrorMessage
-            message="No se pudo completar la acción."
+            message="No se pudieron guardar los datos del viaje."
             technicalDetails={technicalError}
           />
         ) : null}
