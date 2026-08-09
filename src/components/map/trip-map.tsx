@@ -29,19 +29,24 @@ const placeMarkerIcon = L.divIcon({
 
 type TripMapProps = {
   places: PlaceMapMarker[];
+  initialCenter?: [number, number];
+  initialZoom?: number;
 };
 
-export function TripMap({ places }: TripMapProps) {
+export function TripMap({ places, initialCenter, initialZoom }: TripMapProps) {
+  const mapCenter = initialCenter ?? CHICAGO_CENTER;
+  const mapZoom = initialZoom ?? DEFAULT_ZOOM;
+
   return (
     <MapContainer
-      center={CHICAGO_CENTER}
-      zoom={DEFAULT_ZOOM}
+      center={mapCenter}
+      zoom={mapZoom}
       scrollWheelZoom
       className="h-full w-full rounded-xl"
       style={{ minHeight: "420px" }}
     >
       <TileLayer attribution={OSM_ATTRIBUTION} url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-      <FitMapToPlaces places={places} />
+      <FitMapToPlaces places={places} initialCenter={initialCenter} initialZoom={initialZoom} />
       {places.map((place) => (
         <Marker key={place.id} position={[place.lat, place.lng]} icon={placeMarkerIcon}>
           <Popup>
@@ -64,10 +69,23 @@ export function TripMap({ places }: TripMapProps) {
   );
 }
 
-function FitMapToPlaces({ places }: { places: PlaceMapMarker[] }) {
+function FitMapToPlaces({
+  places,
+  initialCenter,
+  initialZoom,
+}: {
+  places: PlaceMapMarker[];
+  initialCenter?: [number, number];
+  initialZoom?: number;
+}) {
   const map = useMap();
 
   useEffect(() => {
+    if (initialCenter) {
+      map.setView(initialCenter, initialZoom ?? 14);
+      return;
+    }
+
     if (places.length === 0) {
       map.setView(CHICAGO_CENTER, DEFAULT_ZOOM);
       return;
@@ -82,7 +100,7 @@ function FitMapToPlaces({ places }: { places: PlaceMapMarker[] }) {
       places.map((place) => [place.lat, place.lng] as [number, number]),
     );
     map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
-  }, [map, places]);
+  }, [map, places, initialCenter, initialZoom]);
 
   return null;
 }

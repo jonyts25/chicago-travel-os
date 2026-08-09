@@ -13,6 +13,8 @@ export type ItineraryDayInsert = Pick<
   "trip_id" | "day_number" | "date"
 >;
 
+export type ItineraryItemStatus = "pending" | "done" | "skipped";
+
 export type ItineraryItem = {
   id: string;
   itinerary_day_id: string;
@@ -21,6 +23,7 @@ export type ItineraryItem = {
   is_fixed: boolean | null;
   start_time: string | null;
   end_time: string | null;
+  status: ItineraryItemStatus | null;
 };
 
 export type ItineraryItemInsert = Pick<

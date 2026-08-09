@@ -17,8 +17,10 @@ const TripMap = dynamic(
 
 type TripMapLoaderProps = {
   places: PlaceMapMarker[];
+  initialCenter?: [number, number];
+  initialZoom?: number;
 };
 
-export function TripMapLoader({ places }: TripMapLoaderProps) {
-  return <TripMap places={places} />;
+export function TripMapLoader({ places, initialCenter, initialZoom }: TripMapLoaderProps) {
+  return <TripMap places={places} initialCenter={initialCenter} initialZoom={initialZoom} />;
 }

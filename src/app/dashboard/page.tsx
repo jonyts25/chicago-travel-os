@@ -57,9 +57,26 @@ export default async function DashboardPage() {
           >
             /planificar
           </Link>{" "}
-          para armar el itinerario día a día.
+          para armar el itinerario día a día ·{" "}
+          <Link href="/hoy" className="font-medium text-emerald-400 hover:text-emerald-300">
+            /hoy
+          </Link>{" "}
+          para el modo viaje activo en el celular.
         </p>
       </section>
+
+      <Link
+        href="/hoy"
+        className="block rounded-2xl border border-emerald-500/40 bg-emerald-950/30 p-6 transition hover:border-emerald-400/60 hover:bg-emerald-950/50"
+      >
+        <p className="text-sm font-medium uppercase tracking-[0.15em] text-emerald-400">
+          En el viaje
+        </p>
+        <h2 className="mt-2 text-xl font-semibold text-white">Abrir modo Hoy</h2>
+        <p className="mt-2 text-sm text-emerald-100/80">
+          Próximo bloque, navegación y acciones rápidas — pensado para usar de pie en la calle.
+        </p>
+      </Link>
     </div>
   );
 }
