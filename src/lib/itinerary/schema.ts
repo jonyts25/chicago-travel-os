@@ -4,9 +4,8 @@
 export type ItineraryDay = {
   id: string;
   trip_id: string;
-  day_number: number;
   date: string | null;
-  created_at?: string;
+  day_number: number;
 };
 
 export type ItineraryDayInsert = Pick<
@@ -19,7 +18,6 @@ export type ItineraryItem = {
   itinerary_day_id: string;
   place_id: string;
   order_index: number;
-  created_at?: string;
 };
 
 export type ItineraryItemInsert = Pick<
