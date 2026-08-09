@@ -1,6 +1,7 @@
 export type Trip = {
   id: string;
   start_date: string | null;
+  base_location: string | null;
 };
 
 export type TripDayOption = {

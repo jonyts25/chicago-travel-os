@@ -43,7 +43,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/hoy") ||
     pathname.startsWith("/import") ||
     pathname.startsWith("/map") ||
-    pathname.startsWith("/planificar");
+    pathname.startsWith("/planificar") ||
+    pathname.startsWith("/preferencias");
 
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();
