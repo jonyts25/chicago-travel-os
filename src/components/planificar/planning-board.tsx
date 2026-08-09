@@ -25,6 +25,7 @@ import {
   formatDayStartSourceLabel,
 } from "@/lib/itinerary/day-constraints";
 import { formatPlanningDayTabLabel } from "@/lib/trips/trip-calendar";
+import { formatTripDateTime } from "@/lib/trips/travel-info";
 import { DEFAULT_DAY_START_MINUTES, formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
@@ -478,7 +479,7 @@ function DayPlanPanel({
             {formatDayStartSourceLabel(day.day_start_source)}) · Hora límite:{" "}
             {formatDayEndMinutes(dayEndMinutes)} ({formatDayEndSourceLabel(day.day_end_source)})
             {day.day_end_source === "flight" && tripSettings.flight_departure
-              ? ` · vuelo ${new Date(tripSettings.flight_departure).toLocaleString("es-MX", {
+              ? ` · vuelo ${formatTripDateTime(tripSettings.flight_departure, {
                   dateStyle: "short",
                   timeStyle: "short",
                 })}`

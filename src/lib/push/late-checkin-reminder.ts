@@ -1,5 +1,7 @@
 import { sendWebPushNotification } from "@/lib/push/web-push-server";
 import type { StoredPushSubscription } from "@/lib/push/schema";
+import { getChicagoDateOnlyString } from "@/lib/trips/chicago-time";
+import { parseDateOnly } from "@/lib/trips/trip-calendar";
 import { createServiceClient } from "@/lib/supabase/service";
 
 type TripReminderRow = {
@@ -55,7 +57,7 @@ export async function runLateCheckinReminder(options?: {
     };
   }
 
-  const today = startOfDay(new Date());
+  const today = parseChicagoDateOnly(new Date());
   const eligibleTrips = (trips ?? []).filter((trip) => {
     if (force) {
       return true;
@@ -148,20 +150,24 @@ export async function runLateCheckinReminder(options?: {
   };
 }
 
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function parseChicagoDateOnly(input: Date | string): Date | null {
+  const dateOnly = getChicagoDateOnlyString(input);
+  if (!dateOnly) {
+    return null;
+  }
+
+  return parseDateOnly(dateOnly);
 }
 
-function isOnOrBeforeCheckinDay(today: Date, hotelCheckinIso: string | null): boolean {
-  if (!hotelCheckinIso?.trim()) {
+function isOnOrBeforeCheckinDay(today: Date | null, hotelCheckinIso: string | null): boolean {
+  if (!today || !hotelCheckinIso?.trim()) {
     return false;
   }
 
-  const checkinDate = new Date(hotelCheckinIso);
-  if (Number.isNaN(checkinDate.getTime())) {
+  const checkinDay = parseChicagoDateOnly(hotelCheckinIso);
+  if (!checkinDay) {
     return false;
   }
 
-  const checkinDay = startOfDay(checkinDate);
   return today.getTime() <= checkinDay.getTime();
 }

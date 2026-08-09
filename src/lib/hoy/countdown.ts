@@ -1,4 +1,5 @@
 import { formatScheduleTime, parseTimeToMinutes } from "@/lib/itinerary/schedule-day";
+import { getChicagoClockMinutesNow } from "@/lib/trips/chicago-time";
 
 export function getCountdownLabel(startTime: string | null, now: Date = new Date()): string {
   if (!startTime) {
@@ -10,7 +11,11 @@ export function getCountdownLabel(startTime: string | null, now: Date = new Date
     return formatScheduleTime(startTime);
   }
 
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = getChicagoClockMinutesNow(now);
+  if (nowMinutes == null) {
+    return formatScheduleTime(startTime);
+  }
+
   const diffMinutes = targetMinutes - nowMinutes;
 
   if (diffMinutes <= 0 && diffMinutes >= -15) {

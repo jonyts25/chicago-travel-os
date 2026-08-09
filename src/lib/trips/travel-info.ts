@@ -4,6 +4,11 @@ import {
   formatScheduleTime,
 } from "@/lib/itinerary/schedule-day";
 import { TRIP_DAY_COUNT } from "@/lib/constants";
+import {
+  formatInChicagoTimeZone,
+  getChicagoClockMinutes,
+  getChicagoDateTimeParts,
+} from "@/lib/trips/chicago-time";
 
 export const ARRIVAL_BUFFER_MINUTES = 120;
 
@@ -44,7 +49,7 @@ export function resolveDayStartMinutesFromArrival(
   }
 
   const readyTime = new Date(arrival.getTime() + ARRIVAL_BUFFER_MINUTES * 60_000);
-  let minutes = readyTime.getHours() * 60 + readyTime.getMinutes();
+  let minutes = getChicagoClockMinutes(readyTime) ?? DEFAULT_DAY_START_MINUTES;
   minutes = Math.ceil(minutes / 30) * 30;
 
   return Math.max(7 * 60, Math.min(minutes, DAY_END_WARNING_MINUTES - 60));
@@ -58,12 +63,7 @@ export function formatTripDateTime(
     return null;
   }
 
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toLocaleString("es-MX", {
+  return formatInChicagoTimeZone(iso, {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -78,14 +78,12 @@ export function formatTripTimeFromIso(iso: string | null | undefined): string | 
     return null;
   }
 
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
+  const parts = getChicagoDateTimeParts(iso);
+  if (!parts) {
     return null;
   }
 
-  const hours = date.getHours();
-  const mins = date.getMinutes();
-  const isoTime = `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:00`;
+  const isoTime = `${String(parts.hours).padStart(2, "0")}:${String(parts.minutes).padStart(2, "0")}:00`;
   return formatScheduleTime(isoTime);
 }
 

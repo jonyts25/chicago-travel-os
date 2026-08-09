@@ -1,4 +1,5 @@
 import { TRIP_DAY_COUNT } from "@/lib/constants";
+import { getChicagoDateOnlyString } from "@/lib/trips/chicago-time";
 
 export type TripCalendarAnchorInput = {
   startDate: string | null;
@@ -45,11 +46,27 @@ export function formatDateOnly(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export function parseTripTimestampDateOnly(value: string | null | undefined): Date | null {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const chicagoDate = getChicagoDateOnlyString(value);
+  if (chicagoDate) {
+    return parseDateOnly(chicagoDate);
+  }
+
+  return parseDateOnly(value);
+}
+
 export function resolveTripAnchorDate(input: TripCalendarAnchorInput): string | null {
   const candidates = [input.startDate, input.hotelCheckin, input.flightArrival];
 
   for (const candidate of candidates) {
-    const parsed = parseDateOnly(candidate);
+    const parsed =
+      candidate === input.startDate
+        ? parseDateOnly(candidate)
+        : parseTripTimestampDateOnly(candidate);
     if (parsed) {
       return formatDateOnly(parsed);
     }
@@ -111,11 +128,11 @@ export function describeTripAnchorSource(input: TripCalendarAnchorInput): string
     return "fecha de inicio del viaje";
   }
 
-  if (parseDateOnly(input.hotelCheckin)) {
+  if (parseDateOnly(input.hotelCheckin) || parseTripTimestampDateOnly(input.hotelCheckin)) {
     return "check-in del hotel";
   }
 
-  if (parseDateOnly(input.flightArrival)) {
+  if (parseDateOnly(input.flightArrival) || parseTripTimestampDateOnly(input.flightArrival)) {
     return "llegada del vuelo";
   }
 
