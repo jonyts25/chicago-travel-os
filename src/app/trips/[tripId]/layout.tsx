@@ -1,3 +1,4 @@
+import { BottomTabBar } from "@/components/layout/bottom-tab-bar";
 import { TripHeader } from "@/components/layout/trip-header";
 import { TripNavigationProvider } from "@/components/layout/trip-navigation-context";
 import { loadTripContext } from "@/lib/trips/load-trip-access";
@@ -38,6 +39,7 @@ export default async function TripLayout({
     >
       <TripHeader />
       {children}
+      <BottomTabBar />
     </TripNavigationProvider>
   );
 }
