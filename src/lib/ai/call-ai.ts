@@ -1,5 +1,5 @@
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_HAIKU_MODEL = "claude-3-5-haiku-latest";
+const DEFAULT_HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
 type AnthropicResponse = {
   content?: Array<{
