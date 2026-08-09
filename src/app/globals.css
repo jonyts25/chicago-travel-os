@@ -24,3 +24,26 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.trip-map-marker {
+  background: transparent;
+  border: none;
+}
+
+.trip-map-marker-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  background: #2563eb;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+}

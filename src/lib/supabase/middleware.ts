@@ -39,7 +39,9 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginRoute = pathname.startsWith("/login");
   const isProtectedRoute =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/import");
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/import") ||
+    pathname.startsWith("/map");
 
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();

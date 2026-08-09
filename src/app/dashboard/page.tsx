@@ -36,11 +36,14 @@ export default async function DashboardPage() {
           <span className="font-medium text-slate-200">{user.email}</span>
         </p>
         <p className="mt-4 text-sm text-slate-500">
-          Fase 1: importación de lugares desde Google Takeout disponible en{" "}
           <Link href="/import" className="font-medium text-blue-400 hover:text-blue-300">
             /import
-          </Link>
-          .
+          </Link>{" "}
+          para lugares ·{" "}
+          <Link href="/map" className="font-medium text-blue-400 hover:text-blue-300">
+            /map
+          </Link>{" "}
+          para ver el mapa (Leaflet + OpenStreetMap).
         </p>
       </section>
     </div>

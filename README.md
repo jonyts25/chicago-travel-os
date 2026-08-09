@@ -74,3 +74,7 @@ Fase 1: importación de lugares desde Google Takeout en `/import`.
 **Deduplicación:** solo por `google_place_id` en el trip Chicago.
 
 **Resumen:** importados, duplicados, sin coordenadas, sin categoría IA, filas sin CID.
+
+### Mapa (`/map`)
+
+Leaflet + tiles OpenStreetMap (`react-leaflet`). Sin token, sin cuenta, sin tarjeta. Muestra los lugares importados con coordenadas del trip Chicago.
