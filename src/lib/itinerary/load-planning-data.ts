@@ -16,6 +16,7 @@ import type {
   TripPlanningSettings,
 } from "@/lib/itinerary/schema";
 import { hasCoordinates } from "@/lib/places/schema";
+import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { createClient } from "@/lib/supabase/server";
 
 type ItemRow = {
@@ -61,7 +62,7 @@ export async function loadPlanningBoardData(): Promise<{
       .order("name", { ascending: true }),
     supabase
       .from("trips")
-      .select("flight_departure, airport_transfer_minutes")
+      .select(TRIP_TRAVEL_SELECT)
       .eq("id", CHICAGO_TRIP_ID)
       .maybeSingle(),
   ]);
@@ -78,12 +79,10 @@ export async function loadPlanningBoardData(): Promise<{
     return { data: null, error: tripResult.error.message };
   }
 
-  const tripSettings: TripPlanningSettings = {
-    flight_departure: tripResult.data?.flight_departure ?? null,
-    airport_transfer_minutes: tripResult.data?.airport_transfer_minutes ?? 90,
-  };
+  const tripSettings: TripPlanningSettings = normalizeTripTravelSettings(tripResult.data);
 
   const tripConstraints: TripDayConstraintsInput = {
+    flightArrival: tripSettings.flight_arrival,
     flightDeparture: tripSettings.flight_departure,
     airportTransferMinutes: tripSettings.airport_transfer_minutes,
   };
@@ -143,7 +142,9 @@ export async function loadPlanningBoardData(): Promise<{
       focus_category: resolved.focusCategory,
       focus_label: resolved.focusLabel,
       day_end_source: resolved.dayEndSource,
+      day_start_source: resolved.dayStartSource,
       day_active_minutes_limit: resolved.dayActiveMinutesLimit,
+      day_start_minutes: resolved.dayStartMinutes,
       items,
     };
   });

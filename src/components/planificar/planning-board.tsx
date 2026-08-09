@@ -22,6 +22,7 @@ import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import {
   formatDayEndMinutes,
   formatDayEndSourceLabel,
+  formatDayStartSourceLabel,
   formatDayTabLabel,
 } from "@/lib/itinerary/day-constraints";
 import { DEFAULT_DAY_START_MINUTES, formatScheduleTime } from "@/lib/itinerary/schedule-day";
@@ -454,8 +455,9 @@ function DayPlanPanel({
             {formatDurationMinutes(totalMinutes)}
           </p>
           <p className={cn(typography.muted, "mt-1")}>
-            Hora límite: {formatDayEndMinutes(dayEndMinutes)} (
-            {formatDayEndSourceLabel(day.day_end_source)})
+            Inicio: {formatDayEndMinutes(day.day_start_minutes)} (
+            {formatDayStartSourceLabel(day.day_start_source)}) · Hora límite:{" "}
+            {formatDayEndMinutes(dayEndMinutes)} ({formatDayEndSourceLabel(day.day_end_source)})
             {day.day_end_source === "flight" && tripSettings.flight_departure
               ? ` · vuelo ${new Date(tripSettings.flight_departure).toLocaleString("es-MX", {
                   dateStyle: "short",

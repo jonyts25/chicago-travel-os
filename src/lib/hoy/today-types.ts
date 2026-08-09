@@ -1,4 +1,5 @@
 import { CHICAGO_TRIP_ID, TRIP_DAY_COUNT } from "@/lib/constants";
+import type { TripTravelSettings } from "@/lib/trips/travel-info";
 
 export const ITINERARY_ITEM_STATUS_PENDING = "pending" as const;
 export const ITINERARY_ITEM_STATUS_DONE = "done" as const;
@@ -39,6 +40,7 @@ export type TodayPageContext = {
   startDate: string | null;
   autoDayNumber: number | null;
   days: { id: string; day_number: number }[];
+  tripSettings: TripTravelSettings;
 };
 
 export function normalizeItemStatus(value: string | null | undefined): ItineraryItemStatus {

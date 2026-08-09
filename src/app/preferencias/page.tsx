@@ -6,6 +6,7 @@ import { ErrorMessage } from "@/components/ui/error-message";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { CHICAGO_TRIP_ID } from "@/lib/constants";
+import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { typography } from "@/lib/ui/styles";
 import { getUserPreferencesAction } from "@/app/preferencias/actions";
 import { createClient } from "@/lib/supabase/server";
@@ -26,35 +27,21 @@ export default async function PreferenciasPage() {
   const preferencesResult = await getUserPreferencesAction();
   const { data: trip } = await supabase
     .from("trips")
-    .select("base_location, flight_departure, airport_transfer_minutes")
+    .select(TRIP_TRAVEL_SELECT)
     .eq("id", CHICAGO_TRIP_ID)
     .maybeSingle();
+
+  const tripSettings = normalizeTripTravelSettings(trip);
 
   return (
     <PageContainer className="max-w-2xl">
       <PageHeader
         eyebrow="Ajustes"
         title="Preferencias del viaje"
-        subtitle="Cada viajero edita las suyas con su cuenta. La IA las usa para sugerir lugares."
+        subtitle="Datos del viaje, preferencias personales y sesión."
       />
 
-      <Card title="Hotel / base del viaje">
-        <p className={typography.body}>
-          {trip?.base_location?.trim() || "Aún no hay base configurada en el trip."}
-        </p>
-        <p className={typography.muted}>
-          Configurable en Supabase (`trips.base_location`).
-        </p>
-      </Card>
-
-      <div className="mt-6">
-        <TripSettingsForm
-          initialSettings={{
-            flight_departure: trip?.flight_departure ?? null,
-            airport_transfer_minutes: trip?.airport_transfer_minutes ?? 90,
-          }}
-        />
-      </div>
+      <TripSettingsForm initialSettings={tripSettings} />
 
       <Card className="mt-6" title="Sesión">
         <p className={typography.secondary}>

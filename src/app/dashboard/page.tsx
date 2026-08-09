@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
+import { TripInfoSummary } from "@/components/trips/trip-info-summary";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
+import { CHICAGO_TRIP_ID } from "@/lib/constants";
+import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { typography } from "@/lib/ui/styles";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -19,6 +22,14 @@ export default async function DashboardPage() {
     redirect("/login?next=/dashboard");
   }
 
+  const { data: trip } = await supabase
+    .from("trips")
+    .select(TRIP_TRAVEL_SELECT)
+    .eq("id", CHICAGO_TRIP_ID)
+    .maybeSingle();
+
+  const tripSettings = normalizeTripTravelSettings(trip);
+
   return (
     <PageContainer>
       <PageHeader
@@ -27,7 +38,9 @@ export default async function DashboardPage() {
         subtitle="Accesos rápidos del viaje. Usa la barra inferior para moverte entre secciones."
       />
 
-      <Card title="Sesión activa">
+      <TripInfoSummary settings={tripSettings} />
+
+      <Card className="mt-6" title="Sesión activa">
         <p className={typography.secondary}>
           Conectado como <span className="font-medium text-slate-200">{user.email}</span>
         </p>

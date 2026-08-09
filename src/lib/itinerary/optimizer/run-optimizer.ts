@@ -24,6 +24,7 @@ import {
   type OptimizerSummary,
 } from "@/lib/itinerary/optimizer/types";
 import { hasCoordinates } from "@/lib/places/schema";
+import { TRIP_TRAVEL_SELECT } from "@/lib/trips/travel-info";
 import { createClient } from "@/lib/supabase/server";
 
 type PlaceRow = {
@@ -265,11 +266,7 @@ async function loadOptimizerContext(): Promise<
           )
           .in("itinerary_day_id", dayIds)
       : Promise.resolve({ data: [], error: null }),
-    supabase
-      .from("trips")
-      .select("flight_departure, airport_transfer_minutes")
-      .eq("id", CHICAGO_TRIP_ID)
-      .maybeSingle(),
+    supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", CHICAGO_TRIP_ID).maybeSingle(),
   ]);
 
   if (placesResult.error) {
@@ -315,6 +312,7 @@ async function loadOptimizerContext(): Promise<
   }
 
   const tripConstraints: TripDayConstraintsInput = {
+    flightArrival: tripResult.data?.flight_arrival ?? null,
     flightDeparture: tripResult.data?.flight_departure ?? null,
     airportTransferMinutes: tripResult.data?.airport_transfer_minutes ?? 90,
   };

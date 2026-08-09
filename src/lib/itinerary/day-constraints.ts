@@ -1,14 +1,16 @@
 import { TRIP_DAY_COUNT } from "@/lib/constants";
 import type { PlaceCategory } from "@/lib/importers/types";
 import {
-  DEFAULT_DAY_START_MINUTES,
   DAY_END_WARNING_MINUTES,
+  DEFAULT_DAY_START_MINUTES,
   formatScheduleTime,
   parseTimeToMinutes,
 } from "@/lib/itinerary/schedule-day";
 import { PLACE_CATEGORIES } from "@/lib/places/place-detail";
+import { resolveDayStartMinutesFromArrival } from "@/lib/trips/travel-info";
 
 export type TripDayConstraintsInput = {
+  flightArrival: string | null;
   flightDeparture: string | null;
   airportTransferMinutes: number;
 };
@@ -22,11 +24,14 @@ export type ItineraryDayConstraintsInput = {
 };
 
 export type DayEndSource = "manual" | "flight" | "default";
+export type DayStartSource = "flight_arrival" | "default";
 
 export type ResolvedDayConstraints = {
   focus: string | null;
   focusCategory: PlaceCategory | null;
   focusLabel: string | null;
+  dayStartMinutes: number;
+  dayStartSource: DayStartSource;
   dayEndMinutes: number;
   dayActiveMinutesLimit: number;
   dayEndSource: DayEndSource;
@@ -77,6 +82,14 @@ export function resolveDayConstraints(
   const focusCategory = resolveFocusCategory(focus);
   const focusLabel = focus;
 
+  let dayStartMinutes = DEFAULT_DAY_START_MINUTES;
+  let dayStartSource: DayStartSource = "default";
+
+  if (day.dayNumber === 1 && trip.flightArrival?.trim()) {
+    dayStartMinutes = resolveDayStartMinutesFromArrival(trip.flightArrival);
+    dayStartSource = "flight_arrival";
+  }
+
   let dayEndMinutes = DAY_END_WARNING_MINUTES;
   let dayEndSource: DayEndSource = "default";
 
@@ -92,12 +105,14 @@ export function resolveDayConstraints(
     }
   }
 
-  const dayActiveMinutesLimit = Math.max(0, dayEndMinutes - DEFAULT_DAY_START_MINUTES);
+  const dayActiveMinutesLimit = Math.max(0, dayEndMinutes - dayStartMinutes);
 
   return {
     focus,
     focusCategory,
     focusLabel,
+    dayStartMinutes,
+    dayStartSource,
     dayEndMinutes,
     dayActiveMinutesLimit,
     dayEndSource,
@@ -186,6 +201,15 @@ export function fromDatetimeLocalValue(value: string): string | null {
   }
 
   return date.toISOString();
+}
+
+export function formatDayStartSourceLabel(source: DayStartSource): string {
+  switch (source) {
+    case "flight_arrival":
+      return "llegada + 2 h";
+    default:
+      return "predeterminada (9:00 AM)";
+  }
 }
 
 export function formatDayEndSourceLabel(source: DayEndSource): string {

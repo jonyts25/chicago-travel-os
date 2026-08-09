@@ -10,6 +10,10 @@ import {
   type TodayPlace,
 } from "@/lib/hoy/today-types";
 import type { Trip } from "@/lib/trips/schema";
+import {
+  TRIP_TRAVEL_SELECT,
+  normalizeTripTravelSettings,
+} from "@/lib/trips/travel-info";
 import { createClient } from "@/lib/supabase/server";
 
 type ItemRow = {
@@ -55,7 +59,7 @@ export async function loadTodayPageContext(): Promise<{
     await Promise.all([
       supabase
         .from("trips")
-        .select("id, start_date")
+        .select(`id, start_date, ${TRIP_TRAVEL_SELECT}`)
         .eq("id", CHICAGO_TRIP_ID)
         .maybeSingle(),
       ensureItineraryDays(CHICAGO_TRIP_ID),
@@ -71,12 +75,14 @@ export async function loadTodayPageContext(): Promise<{
 
   const startDate = (trip as Trip | null)?.start_date ?? null;
   const autoDayNumber = startDate ? getTripDayFromStartDate(startDate) : null;
+  const tripSettings = normalizeTripTravelSettings(trip);
 
   return {
     context: {
       startDate,
       autoDayNumber,
       days: days.map((day) => ({ id: day.id, day_number: day.day_number })),
+      tripSettings,
     },
     error: null,
   };

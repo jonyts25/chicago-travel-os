@@ -58,12 +58,20 @@ export type PlanningDay = {
   focus_category: string | null;
   focus_label: string | null;
   day_end_source: "manual" | "flight" | "default";
+  day_start_source: "flight_arrival" | "default";
   day_active_minutes_limit: number;
+  day_start_minutes: number;
   items: PlanningDayItem[];
 };
 
 export type TripPlanningSettings = {
+  flight_arrival: string | null;
   flight_departure: string | null;
+  flight_outbound_number: string | null;
+  flight_return_number: string | null;
+  hotel_checkin: string | null;
+  hotel_checkout: string | null;
+  base_location: string | null;
   airport_transfer_minutes: number;
 };
 

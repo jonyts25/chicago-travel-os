@@ -34,6 +34,7 @@ import { useArrivalGeolocation } from "@/lib/hoy/use-arrival-geolocation";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory } from "@/lib/planning/format";
 import { TRIP_DAY_COUNT } from "@/lib/constants";
+import { getDayTravelReminder } from "@/lib/trips/travel-info";
 import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
 type TodayViewProps = {
@@ -59,6 +60,7 @@ export function TodayView({ context }: TodayViewProps) {
   const [isUpdating, startUpdate] = useTransition();
 
   const activeDay = context.autoDayNumber ?? selectedDay;
+  const dayReminder = getDayTravelReminder(activeDay, context.tripSettings);
 
   const loadDay = useCallback((dayNumber: number) => {
     startLoadDay(async () => {
@@ -197,6 +199,15 @@ export function TodayView({ context }: TodayViewProps) {
           <p className={typography.sectionTitle}>Día {activeDay} de {TRIP_DAY_COUNT}</p>
         )}
       </Card>
+
+      {dayReminder ? (
+        <Card
+          tone={activeDay === TRIP_DAY_COUNT ? "warning" : "default"}
+          className="!py-4"
+        >
+          <p className={typography.body}>{dayReminder}</p>
+        </Card>
+      ) : null}
 
       {loadError ? (
         <ErrorMessage
