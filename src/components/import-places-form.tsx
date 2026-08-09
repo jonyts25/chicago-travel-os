@@ -58,7 +58,7 @@ export function ImportPlacesForm() {
 
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <SummaryCard label="Importados" value={result.imported} tone="emerald" />
-            <SummaryCard label="Duplicados" value={result.duplicates} tone="amber" />
+            <SummaryCard label="Actualizados" value={result.updated} tone="blue" />
             <SummaryCard
               label="Sin coordenadas"
               value={result.withoutCoordinates}
@@ -82,7 +82,7 @@ export function ImportPlacesForm() {
                 <li
                   key={error}
                   className={`rounded-lg border px-3 py-2 text-sm ${
-                    result.imported > 0
+                    result.imported > 0 || result.updated > 0
                       ? "border-amber-500/40 bg-amber-950/40 text-amber-100"
                       : "border-red-500/40 bg-red-950/40 text-red-200"
                   }`}
@@ -95,9 +95,10 @@ export function ImportPlacesForm() {
 
           {result.errors.length === 0 &&
           result.imported === 0 &&
-          result.duplicates > 0 ? (
+          result.updated > 0 ? (
             <p className="mt-4 text-sm text-slate-400">
-              Todos los lugares del archivo ya existían para este viaje.
+              Se reimportaron {result.updated} lugar(es) existentes (geocodificación
+              y/o categoría IA).
             </p>
           ) : null}
         </section>
@@ -113,11 +114,11 @@ function SummaryCard({
 }: {
   label: string;
   value: number;
-  tone: "emerald" | "amber" | "slate";
+  tone: "emerald" | "blue" | "slate";
 }) {
   const styles = {
     emerald: "border-emerald-500/30 bg-emerald-950/30 text-emerald-300",
-    amber: "border-amber-500/30 bg-amber-950/30 text-amber-300",
+    blue: "border-blue-500/30 bg-blue-950/30 text-blue-300",
     slate: "border-slate-700 bg-slate-900/60 text-slate-400",
   };
 

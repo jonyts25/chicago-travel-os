@@ -1,23 +1,39 @@
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_HAIKU_MODEL = "claude-3-5-haiku-20241022";
+const DEFAULT_HAIKU_MODEL = "claude-3-5-haiku-latest";
 
 type AnthropicResponse = {
   content?: Array<{
     type?: string;
     text?: string;
   }>;
+  error?: {
+    type?: string;
+    message?: string;
+  };
 };
+
+export type CallAIResult = {
+  text: string | null;
+  error: string | null;
+};
+
+export function isAnthropicConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+}
 
 export async function callAI(
   systemPrompt: string,
   userPrompt: string,
-): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+): Promise<CallAIResult> {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    return null;
+    return {
+      text: null,
+      error: "ANTHROPIC_API_KEY no está configurada en el servidor.",
+    };
   }
 
-  const model = process.env.ANTHROPIC_MODEL ?? DEFAULT_HAIKU_MODEL;
+  const model = process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_HAIKU_MODEL;
 
   try {
     const response = await fetch(ANTHROPIC_API_URL, {
@@ -36,14 +52,37 @@ export async function callAI(
       signal: AbortSignal.timeout(25_000),
     });
 
+    const rawBody = await response.text();
+
     if (!response.ok) {
-      return null;
+      let detail = rawBody.slice(0, 240);
+      try {
+        const parsed = JSON.parse(rawBody) as AnthropicResponse;
+        detail = parsed.error?.message ?? detail;
+      } catch {
+        // Keep truncated raw body.
+      }
+
+      return {
+        text: null,
+        error: `Anthropic API ${response.status} (${model}): ${detail}`,
+      };
     }
 
-    const data = (await response.json()) as AnthropicResponse;
+    const data = JSON.parse(rawBody) as AnthropicResponse;
     const textBlock = data.content?.find((block) => block.type === "text");
-    return textBlock?.text?.trim() ?? null;
-  } catch {
-    return null;
+
+    if (!textBlock?.text?.trim()) {
+      return {
+        text: null,
+        error: "Anthropic API respondió sin contenido de texto.",
+      };
+    }
+
+    return { text: textBlock.text.trim(), error: null };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Error desconocido al llamar Anthropic.";
+    return { text: null, error: message };
   }
 }

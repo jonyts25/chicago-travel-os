@@ -35,7 +35,7 @@ export type ExistingPlace = {
 
 export type ImportPlacesResult = {
   imported: number;
-  duplicates: number;
+  updated: number;
   withoutCoordinates: number;
   withoutAiCategory: number;
   skippedNoId: number;
