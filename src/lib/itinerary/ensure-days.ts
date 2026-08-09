@@ -1,9 +1,9 @@
-import { CHICAGO_TRIP_ID, TRIP_DAY_COUNT } from "@/lib/constants";
+import { TRIP_DAY_COUNT } from "@/lib/constants";
 import type { ItineraryDay } from "@/lib/itinerary/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export async function ensureItineraryDays(
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<{ days: ItineraryDay[]; error: string | null }> {
   const supabase = await createClient();
 

@@ -8,11 +8,13 @@ import { useToast } from "@/components/ui/toast-provider";
 import { cn, typography } from "@/lib/ui/styles";
 
 type LateCheckinToggleProps = {
+  tripId: string;
   initialConfirmed: boolean;
   hotelCheckin: string | null;
 };
 
 export function LateCheckinToggle({
+  tripId,
   initialConfirmed,
   hotelCheckin,
 }: LateCheckinToggleProps) {
@@ -27,7 +29,7 @@ export function LateCheckinToggle({
     setConfirmed(nextValue);
 
     startTransition(async () => {
-      const result = await updateLateCheckinConfirmedAction(nextValue);
+      const result = await updateLateCheckinConfirmedAction(tripId, nextValue);
       if (!result.ok) {
         setConfirmed(confirmed);
         setTechnicalError(result.error);

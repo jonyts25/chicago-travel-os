@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useOptionalTripNavigation } from "@/components/layout/trip-navigation-context";
+import { tripPaths } from "@/lib/trips/trip-paths";
+import { isScheduledTrip } from "@/lib/trips/types";
 import { cn } from "@/lib/ui/styles";
 
 type TabItem = {
@@ -11,47 +14,82 @@ type TabItem = {
   icon: (active: boolean) => React.ReactNode;
 };
 
-const tabs: TabItem[] = [
-  {
-    href: "/hoy",
-    label: "Hoy",
-    matchPrefixes: ["/hoy"],
-    icon: (active) => <IconToday active={active} />,
-  },
-  {
-    href: "/planificar",
-    label: "Planificar",
-    matchPrefixes: ["/planificar"],
-    icon: (active) => <IconPlan active={active} />,
-  },
-  {
-    href: "/map",
-    label: "Mapa",
-    matchPrefixes: ["/map"],
-    icon: (active) => <IconMap active={active} />,
-  },
-  {
-    href: "/import",
-    label: "Importar",
-    matchPrefixes: ["/import"],
-    icon: (active) => <IconImport active={active} />,
-  },
-  {
-    href: "/preferencias",
-    label: "Ajustes",
-    matchPrefixes: ["/preferencias", "/dashboard"],
-    icon: (active) => <IconSettings active={active} />,
-  },
-];
-
 const hiddenPrefixes = ["/login"];
 
 export function BottomTabBar() {
   const pathname = usePathname();
+  const tripNavigation = useOptionalTripNavigation();
 
-  if (hiddenPrefixes.some((prefix) => pathname.startsWith(prefix)) || pathname === "/") {
+  if (
+    hiddenPrefixes.some((prefix) => pathname.startsWith(prefix)) ||
+    pathname === "/" ||
+    !tripNavigation
+  ) {
     return null;
   }
+
+  const paths = tripPaths(tripNavigation.tripId);
+  const scheduled = isScheduledTrip(tripNavigation.tripType);
+
+  const tabs: TabItem[] = scheduled
+    ? [
+        {
+          href: paths.hoy,
+          label: "Hoy",
+          matchPrefixes: [paths.hoy],
+          icon: (active) => <IconToday active={active} />,
+        },
+        {
+          href: paths.planificar,
+          label: "Planificar",
+          matchPrefixes: [paths.planificar],
+          icon: (active) => <IconPlan active={active} />,
+        },
+        {
+          href: paths.map,
+          label: "Mapa",
+          matchPrefixes: [paths.map],
+          icon: (active) => <IconMap active={active} />,
+        },
+        {
+          href: paths.import,
+          label: "Importar",
+          matchPrefixes: [paths.import],
+          icon: (active) => <IconImport active={active} />,
+        },
+        {
+          href: paths.preferencias,
+          label: "Ajustes",
+          matchPrefixes: [paths.preferencias, paths.dashboard],
+          icon: (active) => <IconSettings active={active} />,
+        },
+      ]
+    : [
+        {
+          href: paths.lugares,
+          label: "Lugares",
+          matchPrefixes: [paths.lugares],
+          icon: (active) => <IconPlaces active={active} />,
+        },
+        {
+          href: paths.map,
+          label: "Mapa",
+          matchPrefixes: [paths.map],
+          icon: (active) => <IconMap active={active} />,
+        },
+        {
+          href: paths.import,
+          label: "Importar",
+          matchPrefixes: [paths.import],
+          icon: (active) => <IconImport active={active} />,
+        },
+        {
+          href: paths.preferencias,
+          label: "Ajustes",
+          matchPrefixes: [paths.preferencias, paths.dashboard],
+          icon: (active) => <IconSettings active={active} />,
+        },
+      ];
 
   return (
     <nav
@@ -59,7 +97,12 @@ export function BottomTabBar() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="mx-auto grid max-w-lg grid-cols-5">
+      <ul
+        className={cn(
+          "mx-auto grid max-w-lg",
+          scheduled ? "grid-cols-5" : "grid-cols-4",
+        )}
+      >
         {tabs.map((tab) => {
           const active = tab.matchPrefixes.some(
             (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
@@ -99,6 +142,15 @@ function IconPlan({ active }: { active: boolean }) {
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
       <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" strokeLinecap="round" />
       {active ? <circle cx="3" cy="6" r="1.5" fill="currentColor" stroke="none" /> : null}
+    </svg>
+  );
+}
+
+function IconPlaces({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.75">
+      <path d="M12 21s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11Z" />
+      <circle cx="12" cy="10" r="2.5" className={active ? "fill-blue-500/20" : undefined} />
     </svg>
   );
 }

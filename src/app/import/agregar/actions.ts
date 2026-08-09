@@ -14,6 +14,7 @@ const EMPTY_RESULT: AddPlaceResult = {
 };
 
 export async function addPlaceAction(
+  tripId: string,
   formData: FormData,
 ): Promise<AddPlaceResult> {
   const mapsUrl = String(formData.get("mapsUrl") ?? "").trim();
@@ -26,5 +27,5 @@ export async function addPlaceAction(
     };
   }
 
-  return addPlaceFromMapsUrl(mapsUrl, manualName || undefined);
+  return addPlaceFromMapsUrl(tripId, mapsUrl, manualName || undefined);
 }

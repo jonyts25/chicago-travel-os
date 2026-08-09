@@ -31,15 +31,19 @@ import {
   formatFlightDepartureTime,
 } from "@/lib/trips/travel-info";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
 type PlanningBoardProps = Pick<
   PlanningBoardData,
   "days" | "tripSettings" | "tripAnchorDate" | "tripAnchorSource"
->;
+> & {
+  tripId: string;
+};
 
 export function PlanningBoard({
+  tripId,
   days,
   tripSettings,
   tripAnchorDate,
@@ -96,6 +100,7 @@ export function PlanningBoard({
   return (
     <div className="flex flex-col gap-6">
       <PlaceDetailModal
+        tripId={tripId}
         placeId={selectedPlaceId}
         days={days.map((day) => ({ id: day.id, day_number: day.day_number }))}
         onClose={() => setSelectedPlaceId(null)}
@@ -109,7 +114,7 @@ export function PlanningBoard({
       ) : null}
 
       <div className="flex justify-end">
-        <Link href="/planificar/lugares">
+        <Link href={tripPaths(tripId).planificarLugares}>
           <Button type="button" variant="secondary">
             Agregar lugares
           </Button>
@@ -125,7 +130,7 @@ export function PlanningBoard({
             type="button"
             disabled={isPending}
             loading={isPending}
-            onClick={() => runOptimizer(() => generateItineraryAction())}
+            onClick={() => runOptimizer(() => generateItineraryAction(tripId))}
           >
             Generar itinerario
           </Button>
@@ -181,7 +186,7 @@ export function PlanningBoard({
 
         {activeDay ? (
           <>
-            <DaySettingsEditor day={activeDay} disabled={isPending} />
+            <DaySettingsEditor tripId={tripId} day={activeDay} disabled={isPending} />
             <DayPlanPanel
               day={activeDay}
               tripSettings={tripSettings}
@@ -189,25 +194,25 @@ export function PlanningBoard({
             onOpenPlace={(placeId) => setSelectedPlaceId(placeId)}
             onMoveUp={(itemId) =>
               runAction(
-                () => moveItineraryItemAction(itemId, "up"),
+                () => moveItineraryItemAction(tripId, itemId, "up"),
                 "Orden actualizado.",
               )
             }
             onMoveDown={(itemId) =>
               runAction(
-                () => moveItineraryItemAction(itemId, "down"),
+                () => moveItineraryItemAction(tripId, itemId, "down"),
                 "Orden actualizado.",
               )
             }
             onRemove={(itemId) =>
               runAction(
-                () => removePlaceFromDayAction(itemId),
+                () => removePlaceFromDayAction(tripId, itemId),
                 "Lugar quitado del día.",
               )
             }
             onRegenerateDay={() =>
               runOptimizer(
-                () => regenerateDayItineraryAction(activeDay.id),
+                () => regenerateDayItineraryAction(tripId, activeDay.id),
                 "Día regenerado correctamente.",
               )
             }
@@ -237,7 +242,7 @@ export function PlanningBoard({
               }
 
               runAction(
-                () => clearDayAction(activeDay.id),
+                () => clearDayAction(tripId, activeDay.id),
                 `Día ${activeDay.day_number} vaciado.`,
               );
             }}

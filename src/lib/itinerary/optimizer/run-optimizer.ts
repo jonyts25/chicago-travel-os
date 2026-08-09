@@ -1,5 +1,4 @@
 import {
-  CHICAGO_TRIP_ID,
   PLACE_STATUS_PLANNED,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
@@ -70,8 +69,8 @@ function normalizePlaceJoin(value: PlaceRow | PlaceRow[] | null): PlaceRow | nul
   return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
-export async function runFullItineraryOptimizer(): Promise<OptimizerSummary> {
-  const context = await loadOptimizerContext();
+export async function runFullItineraryOptimizer(tripId: string): Promise<OptimizerSummary> {
+  const context = await loadOptimizerContext(tripId);
   if (!context.ok) {
     return context.summary;
   }
@@ -81,13 +80,14 @@ export async function runFullItineraryOptimizer(): Promise<OptimizerSummary> {
     pool: context.pool,
   });
 
-  return applyOptimizerPlan(plan, context, "append");
+  return applyOptimizerPlan(plan, context, tripId, "append");
 }
 
 export async function runSingleDayItineraryOptimizer(
+  tripId: string,
   itineraryDayId: string,
 ): Promise<OptimizerSummary> {
-  const context = await loadOptimizerContext();
+  const context = await loadOptimizerContext(tripId);
   if (!context.ok) {
     return context.summary;
   }
@@ -162,7 +162,7 @@ export async function runSingleDayItineraryOptimizer(
       .from("places")
       .update({ status: PLACE_STATUS_UNPLANNED })
       .in("id", removablePlaceIds)
-      .eq("trip_id", CHICAGO_TRIP_ID);
+      .eq("trip_id", tripId);
 
     if (unplanError) {
       return {
@@ -176,7 +176,7 @@ export async function runSingleDayItineraryOptimizer(
     }
   }
 
-  const refreshed = await loadOptimizerContext();
+  const refreshed = await loadOptimizerContext(tripId);
   if (!refreshed.ok) {
     return refreshed.summary;
   }
@@ -201,7 +201,7 @@ export async function runSingleDayItineraryOptimizer(
     itineraryDayId,
   );
 
-  return applyOptimizerPlan(plan, refreshed, "replace-day", itineraryDayId);
+  return applyOptimizerPlan(plan, refreshed, tripId, "replace-day", itineraryDayId);
 }
 
 type LoadedOptimizerContext = {
@@ -213,7 +213,7 @@ type LoadedOptimizerContext = {
   fixedCountByDay: Map<string, number>;
 };
 
-async function loadOptimizerContext(): Promise<
+async function loadOptimizerContext(tripId: string): Promise<
   | LoadedOptimizerContext
   | { ok: false; summary: OptimizerSummary }
 > {
@@ -236,7 +236,7 @@ async function loadOptimizerContext(): Promise<
     };
   }
 
-  const { days, error: ensureError } = await ensureItineraryDays(CHICAGO_TRIP_ID);
+  const { days, error: ensureError } = await ensureItineraryDays(tripId);
   if (ensureError) {
     return {
       ok: false,
@@ -257,7 +257,7 @@ async function loadOptimizerContext(): Promise<
     supabase
       .from("places")
       .select("id, name, lat, lng, duration_minutes, priority, status, category")
-      .eq("trip_id", CHICAGO_TRIP_ID),
+      .eq("trip_id", tripId),
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
@@ -266,7 +266,7 @@ async function loadOptimizerContext(): Promise<
           )
           .in("itinerary_day_id", dayIds)
       : Promise.resolve({ data: [], error: null }),
-    supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", CHICAGO_TRIP_ID).maybeSingle(),
+    supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", tripId).maybeSingle(),
   ]);
 
   if (placesResult.error) {
@@ -410,6 +410,7 @@ async function loadOptimizerContext(): Promise<
 async function applyOptimizerPlan(
   plan: ReturnType<typeof buildFullTripPlan>,
   context: LoadedOptimizerContext,
+  tripId: string,
   mode: "append" | "replace-day",
   targetDayId?: string,
 ): Promise<OptimizerSummary> {
@@ -460,7 +461,7 @@ async function applyOptimizerPlan(
       .from("places")
       .update({ status: PLACE_STATUS_PLANNED })
       .in("id", placeIdsToPlan)
-      .eq("trip_id", CHICAGO_TRIP_ID);
+      .eq("trip_id", tripId);
 
     if (updateError) {
       return {
@@ -486,7 +487,7 @@ async function applyOptimizerPlan(
     );
   }
 
-  const scheduleWarnings = await recalculateSchedulesForTrip(supabase, {
+  const scheduleWarnings = await recalculateSchedulesForTrip(supabase, tripId, {
     onlyDayId: mode === "replace-day" ? targetDayId : undefined,
   });
   warnings.push(...scheduleWarnings);
@@ -502,12 +503,13 @@ async function applyOptimizerPlan(
 
 async function recalculateSchedulesForTrip(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   options: { onlyDayId?: string },
 ): Promise<string[]> {
   const query = supabase
     .from("itinerary_days")
     .select("id, day_number")
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .order("day_number", { ascending: true });
 
   const { data: days, error } = await query;
@@ -538,7 +540,7 @@ async function recalculateSchedulesForTrip(
       continue;
     }
 
-    const result = await recalculateDaySchedule(supabase, day.id);
+    const result = await recalculateDaySchedule(supabase, tripId, day.id);
     if (!result.ok) {
       warnings.push(`Día ${day.day_number}: ${result.error ?? "error al calcular horarios"}`);
       continue;

@@ -3,9 +3,10 @@
 import { generatePlaceSuggestions, type PlaceSuggestion } from "@/lib/ai/suggest-places";
 import { addPlacesFromNames } from "@/lib/places/import-places";
 import { loadSuggestionContext } from "@/lib/users/load-suggestion-context";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
-export async function suggestPlacesAction(): Promise<
+export async function suggestPlacesAction(tripId: string): Promise<
   | {
       ok: true;
       suggestions: PlaceSuggestion[];
@@ -17,7 +18,7 @@ export async function suggestPlacesAction(): Promise<
     }
   | { ok: false; error: string }
 > {
-  const { context, error } = await loadSuggestionContext();
+  const { context, error } = await loadSuggestionContext(tripId);
 
   if (error || !context) {
     return { ok: false, error: error ?? "No se pudo cargar el contexto." };
@@ -41,6 +42,7 @@ export async function suggestPlacesAction(): Promise<
 }
 
 export async function addSelectedPlaceSuggestionsAction(
+  tripId: string,
   selections: PlaceSuggestion[],
 ): Promise<
   | {
@@ -57,6 +59,7 @@ export async function addSelectedPlaceSuggestionsAction(
   }
 
   const result = await addPlacesFromNames(
+    tripId,
     selections.map((selection) => ({
       name: selection.name,
       notes: selection.reason ? `Sugerencia IA: ${selection.reason}` : null,
@@ -64,10 +67,9 @@ export async function addSelectedPlaceSuggestionsAction(
   );
 
   if (result.added.length > 0) {
-    revalidatePath("/planificar");
-    revalidatePath("/planificar/lugares");
-    revalidatePath("/map");
-    revalidatePath("/import");
+    for (const path of revalidateTripPaths(tripId)) {
+      revalidatePath(path);
+    }
   }
 
   if (

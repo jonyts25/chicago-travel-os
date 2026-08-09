@@ -13,11 +13,13 @@ import type { NominatimPlaceSearchResult } from "@/lib/geocoding/nominatim-searc
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceSearchPanelProps = {
+  tripId: string;
   disabled?: boolean;
   onPlaceAdded?: () => void;
 };
 
 export function PlaceSearchPanel({
+  tripId,
   disabled = false,
   onPlaceAdded,
 }: PlaceSearchPanelProps) {
@@ -39,7 +41,7 @@ export function PlaceSearchPanel({
     setResults([]);
 
     startSearching(async () => {
-      const response = await searchPlacesAction(query);
+      const response = await searchPlacesAction(tripId, query);
       if (!response.ok) {
         setError(response.error);
         return;
@@ -58,7 +60,7 @@ export function PlaceSearchPanel({
     setPendingSelection(null);
 
     startAdding(async () => {
-      const response = await addPlaceFromSearchAction({
+      const response = await addPlaceFromSearchAction(tripId, {
         name: result.name,
         address: result.address,
         lat: result.lat,
@@ -93,6 +95,7 @@ export function PlaceSearchPanel({
     setError(null);
     startAdding(async () => {
       const response = await addPlaceFromSearchAction(
+        tripId,
         {
           name: pendingSelection.name,
           address: pendingSelection.address,

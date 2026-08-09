@@ -21,12 +21,13 @@ import {
 import { cn, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceDocumentsSectionProps = {
+  tripId: string;
   placeId: string;
 };
 
 const ACCEPT_ATTRIBUTE = ALLOWED_PLACE_DOCUMENT_EXTENSIONS.join(",");
 
-export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
+export function PlaceDocumentsSection({ tripId, placeId }: PlaceDocumentsSectionProps) {
   const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<PlaceDocumentListItem[]>([]);
@@ -42,7 +43,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     setLoading(true);
     setLocalError(null);
 
-    listPlaceDocumentsAction(placeId).then((result) => {
+    listPlaceDocumentsAction(tripId, placeId).then((result) => {
       if (cancelled) {
         return;
       }
@@ -61,7 +62,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     return () => {
       cancelled = true;
     };
-  }, [placeId]);
+  }, [placeId, tripId]);
 
   function handleChooseFile() {
     fileInputRef.current?.click();
@@ -88,7 +89,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     formData.set("file", file);
 
     startUpload(async () => {
-      const result = await uploadPlaceDocumentAction(formData);
+      const result = await uploadPlaceDocumentAction(tripId, formData);
       if (!result.ok) {
         setLocalError(result.error);
         return;
@@ -97,7 +98,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
       if (result.data) {
         setDocuments((current) => [result.data!, ...current]);
       } else {
-        const refreshed = await listPlaceDocumentsAction(placeId);
+        const refreshed = await listPlaceDocumentsAction(tripId, placeId);
         if (refreshed.ok) {
           setDocuments(refreshed.data ?? []);
         }
@@ -111,7 +112,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     setLocalError(null);
     setIsOpeningId(documentId);
 
-    const result = await getPlaceDocumentSignedUrlAction(documentId);
+    const result = await getPlaceDocumentSignedUrlAction(tripId, documentId);
     setIsOpeningId(null);
 
     if (!result.ok || !result.data?.url) {
@@ -126,7 +127,7 @@ export function PlaceDocumentsSection({ placeId }: PlaceDocumentsSectionProps) {
     setLocalError(null);
     setIsDeletingId(documentId);
 
-    const result = await deletePlaceDocumentAction(documentId);
+    const result = await deletePlaceDocumentAction(tripId, documentId);
     setIsDeletingId(null);
     setPendingDeleteId(null);
 

@@ -1,5 +1,4 @@
 import {
-  CHICAGO_TRIP_ID,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { applyAIEnrichment, enrichPlacesWithAI } from "@/lib/ai/enrich-places";
@@ -37,6 +36,7 @@ type ExistingPlaceRow = {
 };
 
 export async function importGoogleMapsPlaces(
+  tripId: string,
   fileContent: string,
   filename?: string,
 ): Promise<ImportPlacesResult> {
@@ -63,7 +63,7 @@ export async function importGoogleMapsPlaces(
   const { data: existingRows, error: fetchError } = await supabase
     .from("places")
     .select("id, google_place_id, lat, lng, address, category")
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (fetchError) {
     return {
@@ -92,13 +92,14 @@ export async function importGoogleMapsPlaces(
   const existingById = new Map(
     ((existingRows ?? []) as ExistingPlaceRow[]).map((row) => [row.id, row]),
   );
-  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const geocodingContext = await loadTripGeocodingContext(supabase, tripId);
 
-  const insertResult = await processAndInsertPlaces(toInsert, geocodingContext);
+  const insertResult = await processAndInsertPlaces(tripId, toInsert, geocodingContext);
   summaryErrors.push(...insertResult.errors);
 
   const updateResult = await processAndUpdatePlaces(
     supabase,
+    tripId,
     toUpdate,
     existingById,
     geocodingContext,
@@ -124,6 +125,7 @@ export async function importGoogleMapsPlaces(
 }
 
 export async function addPlaceFromMapsUrl(
+  tripId: string,
   mapsUrl: string,
   manualName?: string,
 ): Promise<AddPlaceResult> {
@@ -161,7 +163,7 @@ export async function addPlaceFromMapsUrl(
   const { data: existing, error: fetchError } = await supabase
     .from("places")
     .select("id, google_place_id, lat, lng, address, category")
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .eq("google_place_id", parsed.place.google_place_id)
     .maybeSingle();
 
@@ -181,7 +183,7 @@ export async function addPlaceFromMapsUrl(
     ? [{ ...parsed.place, existingId: existingRow.id }]
     : [parsed.place];
 
-  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const geocodingContext = await loadTripGeocodingContext(supabase, tripId);
   const processed = await processParsedPlaces(
     inputPlaces,
     existingById,
@@ -211,7 +213,7 @@ export async function addPlaceFromMapsUrl(
       .from("places")
       .update(buildPlaceUpdatePayload(saved))
       .eq("id", existingId)
-      .eq("trip_id", CHICAGO_TRIP_ID);
+      .eq("trip_id", tripId);
 
     if (error) {
       return {
@@ -234,7 +236,7 @@ export async function addPlaceFromMapsUrl(
 
   const { error: insertError } = await supabase
     .from("places")
-    .insert(buildPlaceInsertRow(saved));
+    .insert(buildPlaceInsertRow(tripId, saved));
 
   if (insertError) {
     return {
@@ -264,6 +266,7 @@ export type AddPlacesFromNamesResult = {
 };
 
 export async function addPlacesFromNames(
+  tripId: string,
   places: { name: string; notes?: string | null }[],
 ): Promise<AddPlacesFromNamesResult> {
   const supabase = await createClient();
@@ -301,7 +304,7 @@ export async function addPlacesFromNames(
   const { data: existingRows, error: fetchError } = await supabase
     .from("places")
     .select("name")
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (fetchError) {
     return {
@@ -321,7 +324,7 @@ export async function addPlacesFromNames(
   const skippedDuplicate: string[] = [];
   const failedGeocode: string[] = [];
   const errors: string[] = [];
-  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const geocodingContext = await loadTripGeocodingContext(supabase, tripId);
 
   for (const place of trimmedPlaces) {
     const normalized = normalizePlaceName(place.name);
@@ -353,7 +356,7 @@ export async function addPlacesFromNames(
 
     const { error: insertError } = await supabase
       .from("places")
-      .insert(buildPlaceInsertRow(saved));
+      .insert(buildPlaceInsertRow(tripId, saved));
 
     if (insertError) {
       errors.push(`No se pudo agregar "${place.name}": ${insertError.message}`);
@@ -432,6 +435,7 @@ export async function runImportPipelineDryRun(
 }
 
 async function processAndInsertPlaces(
+  tripId: string,
   places: ParsedGooglePlace[],
   geocodingContext: TripGeocodingContext,
 ): Promise<ProcessBatchResult> {
@@ -447,7 +451,7 @@ async function processAndInsertPlaces(
   }
 
   const rowsToInsert: PlaceInsert[] = processed.places.map((place) =>
-    buildPlaceInsertRow(place),
+    buildPlaceInsertRow(tripId, place),
   );
 
   const { error: insertError } = await supabase.from("places").insert(rowsToInsert);
@@ -465,6 +469,7 @@ async function processAndInsertPlaces(
 
 async function processAndUpdatePlaces(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   places: PlaceToUpdate[],
   existingById: Map<string, ExistingPlaceRow>,
   geocodingContext: TripGeocodingContext,
@@ -493,7 +498,7 @@ async function processAndUpdatePlaces(
       .from("places")
       .update(payload)
       .eq("id", existingId)
-      .eq("trip_id", CHICAGO_TRIP_ID);
+      .eq("trip_id", tripId);
 
     if (error) {
       errors.push(`Error al actualizar "${place.name}": ${error.message}`);
@@ -587,9 +592,9 @@ async function processParsedPlaces(
   };
 }
 
-function buildPlaceInsertRow(place: ProcessedPlace): PlaceInsert {
+function buildPlaceInsertRow(tripId: string, place: ProcessedPlace): PlaceInsert {
   return {
-    trip_id: CHICAGO_TRIP_ID,
+    trip_id: tripId,
     name: place.name,
     lat: place.lat,
     lng: place.lng,

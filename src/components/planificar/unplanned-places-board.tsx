@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
@@ -21,9 +22,14 @@ type PlacePool = "located" | "unlocated";
 type UnplannedPlacesBoardProps = Pick<
   PlanningBoardData,
   "days" | "unplannedPlaces" | "unlocatedPlaces"
->;
+> & {
+  tripId: string;
+  mode?: "scheduled" | "ongoing";
+};
 
 export function UnplannedPlacesBoard({
+  tripId,
+  mode = "scheduled",
   days,
   unplannedPlaces,
   unlocatedPlaces,
@@ -64,7 +70,7 @@ export function UnplannedPlacesBoard({
   function runAssign(placeId: string, dayId: string) {
     setActionError(null);
     startTransition(async () => {
-      const result = await assignPlaceToDayAction(placeId, dayId);
+      const result = await assignPlaceToDayAction(tripId, placeId, dayId);
       if (!result.ok) {
         setActionError(result.error ?? "No se pudo agregar el lugar al día.");
         return;
@@ -77,17 +83,22 @@ export function UnplannedPlacesBoard({
   return (
     <div className="flex flex-col gap-6">
       <PlaceDetailModal
+        tripId={tripId}
         placeId={selectedPlaceId}
         days={days.map((day) => ({ id: day.id, day_number: day.day_number }))}
         onClose={() => setSelectedPlaceId(null)}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/planificar">
-          <Button type="button" variant="secondary">
-            Volver al itinerario
-          </Button>
-        </Link>
+        {mode === "scheduled" ? (
+          <Link href={tripPaths(tripId).planificar}>
+            <Button type="button" variant="secondary">
+              Volver al itinerario
+            </Button>
+          </Link>
+        ) : (
+          <div />
+        )}
         <Button type="button" variant="secondary" disabled={isPending} onClick={refreshPlaces}>
           Refrescar
         </Button>
@@ -100,9 +111,9 @@ export function UnplannedPlacesBoard({
         />
       ) : null}
 
-      <PlaceSearchPanel disabled={isPending} onPlaceAdded={() => router.refresh()} />
+      <PlaceSearchPanel tripId={tripId} disabled={isPending} onPlaceAdded={() => router.refresh()} />
 
-      <PlaceSuggestionsPanel />
+      <PlaceSuggestionsPanel tripId={tripId} />
 
       <Card
         title={placePool === "located" ? "Sin planear" : "Sin coordenadas"}
@@ -170,7 +181,7 @@ export function UnplannedPlacesBoard({
                 key={place.id}
                 place={place}
                 days={days}
-                disabled={isPending || placePool === "unlocated"}
+                disabled={isPending || placePool === "unlocated" || days.length === 0}
                 onOpen={() => setSelectedPlaceId(place.id)}
                 onAssign={(dayId) => runAssign(place.id, dayId)}
               />
@@ -275,7 +286,7 @@ function UnplannedPlaceCard({
           </label>
           <Button
             type="button"
-            disabled={disabled || !selectedDayId}
+            disabled={disabled || !selectedDayId || days.length === 0}
             loading={disabled}
             onClick={() => onAssign(selectedDayId)}
           >

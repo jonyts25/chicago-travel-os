@@ -19,6 +19,7 @@ import { fromDateInputValue, toDateInputValue } from "@/lib/trips/trip-calendar"
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type TripSettingsFormProps = {
+  tripId: string;
   initialSettings: TripPlanningSettings;
 };
 
@@ -28,7 +29,7 @@ function toFormState(settings: TripPlanningSettings): FormState {
   return { ...settings };
 }
 
-export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
+export function TripSettingsForm({ tripId, initialSettings }: TripSettingsFormProps) {
   const { showToast } = useToast();
   const [form, setForm] = useState<FormState>(() => toFormState(initialSettings));
   const [confirmationText, setConfirmationText] = useState("");
@@ -102,7 +103,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
         : form.start_date;
 
     startSave(async () => {
-      const result = await updateTripSettingsAction({
+      const result = await updateTripSettingsAction(tripId, {
         start_date,
         flight_arrival: readDatetimeField(formData, "flight_arrival"),
         flight_departure: readDatetimeField(formData, "flight_departure"),

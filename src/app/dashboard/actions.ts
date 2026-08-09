@@ -1,9 +1,9 @@
 "use server";
 
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import type { StoredPushSubscription } from "@/lib/push/schema";
 import { assertTripMember, interpretMutationResult } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 export async function getPushSubscriptionStatusAction(): Promise<
@@ -84,6 +84,7 @@ export async function savePushSubscriptionAction(
 }
 
 export async function updateLateCheckinConfirmedAction(
+  tripId: string,
   confirmed: boolean,
 ): Promise<{ ok: true; confirmed: boolean } | { ok: false; error: string }> {
   const supabase = await createClient();
@@ -95,7 +96,7 @@ export async function updateLateCheckinConfirmedAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const membership = await assertTripMember(supabase, user.id, CHICAGO_TRIP_ID);
+  const membership = await assertTripMember(supabase, user.id, tripId);
   if (!membership.ok) {
     return membership;
   }
@@ -103,7 +104,7 @@ export async function updateLateCheckinConfirmedAction(
   const { data, error } = await supabase
     .from("trips")
     .update({ late_checkin_confirmed: confirmed })
-    .eq("id", CHICAGO_TRIP_ID)
+    .eq("id", tripId)
     .select("id")
     .single();
 
@@ -118,6 +119,8 @@ export async function updateLateCheckinConfirmedAction(
     return mutation;
   }
 
-  revalidatePath("/dashboard");
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
   return { ok: true, confirmed };
 }

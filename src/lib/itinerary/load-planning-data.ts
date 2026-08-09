@@ -1,7 +1,4 @@
-import {
-  CHICAGO_TRIP_ID,
-  PLACE_STATUS_UNPLANNED,
-} from "@/lib/constants";
+import { PLACE_STATUS_UNPLANNED } from "@/lib/constants";
 import { ensureItineraryDays } from "@/lib/itinerary/ensure-days";
 import {
   resolveDayConstraints,
@@ -36,12 +33,12 @@ type ItemRow = {
   places: PlanningPlace | PlanningPlace[] | null;
 };
 
-export async function loadPlanningBoardData(): Promise<{
+export async function loadPlanningBoardData(tripId: string): Promise<{
   data: PlanningBoardData | null;
   error: string | null;
 }> {
   const { days: initialDays, error: ensureError } =
-    await ensureItineraryDays(CHICAGO_TRIP_ID);
+    await ensureItineraryDays(tripId);
 
   if (ensureError) {
     return { data: null, error: ensureError };
@@ -52,7 +49,7 @@ export async function loadPlanningBoardData(): Promise<{
   const { data: tripResult, error: tripResultError } = await supabase
     .from("trips")
     .select(TRIP_TRAVEL_SELECT)
-    .eq("id", CHICAGO_TRIP_ID)
+    .eq("id", tripId)
     .maybeSingle();
 
   if (tripResultError) {
@@ -70,7 +67,7 @@ export async function loadPlanningBoardData(): Promise<{
   const tripAnchorSource = describeTripAnchorSource(anchorInput);
 
   const { days: itineraryDays, error: syncError } = await syncItineraryDayDatesFromAnchor(
-    CHICAGO_TRIP_ID,
+    tripId,
     initialDays,
     anchorInput,
   );
@@ -94,7 +91,7 @@ export async function loadPlanningBoardData(): Promise<{
     supabase
       .from("places")
       .select("id, name, category, duration_minutes, lat, lng")
-      .eq("trip_id", CHICAGO_TRIP_ID)
+      .eq("trip_id", tripId)
       .eq("status", PLACE_STATUS_UNPLANNED)
       .order("name", { ascending: true }),
   ]);

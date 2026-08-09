@@ -1,7 +1,6 @@
 "use server";
 
 import {
-  CHICAGO_TRIP_ID,
   PLACE_STATUS_PLANNED,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
@@ -14,15 +13,17 @@ import type {
 } from "@/lib/places/place-detail";
 import { timeInputToDbValue } from "@/lib/places/place-format";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
-function revalidatePlaceViews(): void {
-  revalidatePath("/planificar");
-  revalidatePath("/planificar/lugares");
-  revalidatePath("/map");
+function revalidatePlaceViews(tripId: string): void {
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
 }
 
 export async function getPlaceDetailAction(
+  tripId: string,
   placeId: string,
 ): Promise<{ ok: true; place: PlaceDetail } | { ok: false; error: string }> {
   const supabase = await createClient();
@@ -40,7 +41,7 @@ export async function getPlaceDetailAction(
       "id, name, category, priority, interest, duration_minutes, notes, reservation_required, opening_hours, lat, lng, address, status, maps_url",
     )
     .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (placeError) {
@@ -70,7 +71,7 @@ export async function getPlaceDetailAction(
       .from("itinerary_days")
       .select("day_number")
       .eq("id", itemRow.itinerary_day_id)
-      .eq("trip_id", CHICAGO_TRIP_ID)
+      .eq("trip_id", tripId)
       .maybeSingle();
 
     if (dayError) {
@@ -111,6 +112,7 @@ export async function getPlaceDetailAction(
 }
 
 export async function updatePlaceAction(
+  tripId: string,
   input: UpdatePlaceInput,
 ): Promise<PlaceMutationResult> {
   const supabase = await createClient();
@@ -138,7 +140,7 @@ export async function updatePlaceAction(
     .from("places")
     .select("id, status")
     .eq("id", input.placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (fetchError) {
@@ -177,7 +179,7 @@ export async function updatePlaceAction(
     .from("places")
     .update(placePayload)
     .eq("id", input.placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (updatePlaceError) {
     return { ok: false, error: updatePlaceError.message };
@@ -194,7 +196,7 @@ export async function updatePlaceAction(
     };
   }
 
-  const reservationResult = await syncReservationItineraryItem(supabase, {
+  const reservationResult = await syncReservationItineraryItem(supabase, tripId, {
     placeId: input.placeId,
     reservationRequired: input.reservation_required,
     reservationStartTime: normalizedReservationTime,
@@ -206,16 +208,17 @@ export async function updatePlaceAction(
     return reservationResult;
   }
 
-  const scheduleResult = await recalculateDayScheduleForPlace(supabase, input.placeId);
+  const scheduleResult = await recalculateDayScheduleForPlace(supabase, tripId, input.placeId);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePlaceViews();
+  revalidatePlaceViews(tripId);
   return { ok: true };
 }
 
 export async function retryPlaceGeocodingAction(
+  tripId: string,
   placeId: string,
 ): Promise<PlaceMutationResult> {
   const supabase = await createClient();
@@ -227,17 +230,20 @@ export async function retryPlaceGeocodingAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const result = await geocodePlaceById(supabase, placeId);
+  const result = await geocodePlaceById(supabase, placeId, tripId);
 
   if (!result.ok) {
     return { ok: false, error: result.error };
   }
 
-  revalidatePlaceViews();
+  revalidatePlaceViews(tripId);
   return { ok: true };
 }
 
-export async function deletePlaceAction(placeId: string): Promise<PlaceMutationResult> {
+export async function deletePlaceAction(
+  tripId: string,
+  placeId: string,
+): Promise<PlaceMutationResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -251,13 +257,13 @@ export async function deletePlaceAction(placeId: string): Promise<PlaceMutationR
     .from("places")
     .delete()
     .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (error) {
     return { ok: false, error: error.message };
   }
 
-  revalidatePlaceViews();
+  revalidatePlaceViews(tripId);
   return { ok: true };
 }
 
@@ -281,6 +287,7 @@ function toTimeOnlyFromDb(value: string): string {
 
 async function syncReservationItineraryItem(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   options: {
     placeId: string;
     reservationRequired: boolean;
@@ -338,7 +345,7 @@ async function syncReservationItineraryItem(
       .from("places")
       .update({ status: PLACE_STATUS_PLANNED })
       .eq("id", options.placeId)
-      .eq("trip_id", CHICAGO_TRIP_ID);
+      .eq("trip_id", tripId);
 
     if (statusError) {
       return { ok: false, error: statusError.message };
@@ -356,7 +363,7 @@ async function syncReservationItineraryItem(
     .from("itinerary_days")
     .select("id")
     .eq("id", targetDayId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -398,7 +405,7 @@ async function syncReservationItineraryItem(
     .from("places")
     .update({ status: PLACE_STATUS_PLANNED })
     .eq("id", options.placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (statusError) {
     return { ok: false, error: statusError.message };

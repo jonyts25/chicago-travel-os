@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
+import { tripPaths } from "@/lib/trips/trip-paths";
 import {
   formatTripDateTime,
   formatTripTimeFromIso,
@@ -9,12 +10,14 @@ import {
 import { typography } from "@/lib/ui/styles";
 
 type TripInfoSummaryProps = {
+  tripId: string;
   settings: TripTravelSettings;
   showEditLink?: boolean;
   compact?: boolean;
 };
 
 export function TripInfoSummary({
+  tripId,
   settings,
   showEditLink = true,
   compact = false,
@@ -26,7 +29,7 @@ export function TripInfoSummary({
           Aún no hay vuelos ni hotel capturados.
         </p>
         {showEditLink ? (
-          <Link href="/preferencias" className={`${typography.body} mt-3 inline-block text-blue-400 underline`}>
+          <Link href={tripPaths(tripId).preferencias} className={`${typography.body} mt-3 inline-block text-blue-400 underline`}>
             Capturar en Ajustes
           </Link>
         ) : null}
@@ -85,7 +88,7 @@ export function TripInfoSummary({
       </dl>
 
       {showEditLink ? (
-        <Link href="/preferencias" className={`${typography.muted} mt-4 inline-block underline`}>
+        <Link href={tripPaths(tripId).preferencias} className={`${typography.muted} mt-4 inline-block underline`}>
           Editar en Ajustes
         </Link>
       ) : null}

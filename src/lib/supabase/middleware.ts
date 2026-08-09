@@ -38,13 +38,17 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isLoginRoute = pathname.startsWith("/login");
+  const legacyPrefixes = [
+    "/dashboard",
+    "/hoy",
+    "/import",
+    "/map",
+    "/planificar",
+    "/preferencias",
+  ];
   const isProtectedRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/hoy") ||
-    pathname.startsWith("/import") ||
-    pathname.startsWith("/map") ||
-    pathname.startsWith("/planificar") ||
-    pathname.startsWith("/preferencias");
+    pathname.startsWith("/trips/") ||
+    legacyPrefixes.some((prefix) => pathname.startsWith(prefix));
 
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();
@@ -55,15 +59,16 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && pathname === "/" && !isLoginRoute) {
+  if (legacyPrefixes.some((prefix) => pathname.startsWith(prefix))) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/hoy";
+    redirectUrl.pathname = "/";
+    redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }
 
   if (user && pathname === "/login") {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/hoy";
+    redirectUrl.pathname = "/";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }

@@ -1,31 +1,42 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { CreateTripForm } from "@/components/home/create-trip-form";
+import { TripList } from "@/components/home/trip-list";
 import { PageContainer } from "@/components/ui/page-container";
-import { typography } from "@/lib/ui/styles";
+import { PageHeader } from "@/components/ui/page-header";
+import { loadUserTrips } from "@/lib/trips/load-trip-access";
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const params = await searchParams;
+
+  if (!user) {
+    redirect("/login?next=/");
+  }
+
+  const tripsResult = await loadUserTrips(supabase, user.id);
+
   return (
-    <PageContainer className="flex items-center justify-center py-16">
-      <div className="w-full max-w-xl space-y-8 text-center">
-        <div className="space-y-3">
-          <p className={typography.eyebrow}>PWA privada</p>
-          <h1 className={typography.pageTitle}>Chicago Travel OS</h1>
-          <p className={typography.pageSubtitle}>
-            Planificador de viaje para 2 usuarios. Instálala en tu teléfono y gestiona el
-            itinerario de 4 días en Chicago.
-          </p>
-        </div>
+    <PageContainer className="max-w-2xl">
+      <PageHeader
+        eyebrow="Travel OS"
+        title="Tus viajes"
+        subtitle="Elige un viaje o crea uno nuevo. Cada viaje tiene sus lugares, mapa e importación."
+      />
 
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/login">
-            <Button className="min-w-40">Entrar</Button>
-          </Link>
-          <Link href="/hoy">
-            <Button variant="secondary" className="min-w-40">
-              Modo hoy
-            </Button>
-          </Link>
-        </div>
+      {tripsResult.ok ? <TripList trips={tripsResult.trips} /> : null}
+
+      <div className="mt-6">
+        <CreateTripForm initialError={params.error ?? null} />
       </div>
     </PageContainer>
   );

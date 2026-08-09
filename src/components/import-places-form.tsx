@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/toast-provider";
 import { inputs, surfaces, typography } from "@/lib/ui/styles";
 import type { ImportPlacesResult } from "@/lib/importers/types";
 
-export function ImportPlacesForm() {
+export function ImportPlacesForm({ tripId }: { tripId: string }) {
   const { showToast } = useToast();
   const [fileName, setFileName] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
@@ -21,7 +21,7 @@ export function ImportPlacesForm() {
     setResult(null);
 
     const formData = new FormData(event.currentTarget);
-    const summary = await importPlacesAction(formData);
+    const summary = await importPlacesAction(tripId, formData);
 
     setResult(summary);
     setStatus("done");

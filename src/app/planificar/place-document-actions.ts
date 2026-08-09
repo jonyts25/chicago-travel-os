@@ -1,6 +1,5 @@
 "use server";
 
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import {
   buildDocumentStoragePath,
   TRIP_DOCUMENTS_BUCKET,
@@ -8,6 +7,7 @@ import {
   type PlaceDocumentListItem,
 } from "@/lib/places/place-documents";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 const SIGNED_URL_EXPIRY_SECONDS = 60;
@@ -18,13 +18,14 @@ type ActionResult<T = undefined> =
 
 async function assertPlaceInTrip(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   placeId: string,
 ): Promise<ActionResult> {
   const { data, error } = await supabase
     .from("places")
     .select("id")
     .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (error) {
@@ -38,7 +39,14 @@ async function assertPlaceInTrip(
   return { ok: true };
 }
 
+function revalidatePlaceDocumentViews(tripId: string): void {
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
+}
+
 export async function listPlaceDocumentsAction(
+  tripId: string,
   placeId: string,
 ): Promise<ActionResult<PlaceDocumentListItem[]>> {
   const supabase = await createClient();
@@ -50,7 +58,7 @@ export async function listPlaceDocumentsAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const placeCheck = await assertPlaceInTrip(supabase, placeId);
+  const placeCheck = await assertPlaceInTrip(supabase, tripId, placeId);
   if (!placeCheck.ok) {
     return placeCheck;
   }
@@ -69,6 +77,7 @@ export async function listPlaceDocumentsAction(
 }
 
 export async function uploadPlaceDocumentAction(
+  tripId: string,
   formData: FormData,
 ): Promise<ActionResult<PlaceDocumentListItem>> {
   const supabase = await createClient();
@@ -96,7 +105,7 @@ export async function uploadPlaceDocumentAction(
     return { ok: false, error: validation.error };
   }
 
-  const placeCheck = await assertPlaceInTrip(supabase, placeId);
+  const placeCheck = await assertPlaceInTrip(supabase, tripId, placeId);
   if (!placeCheck.ok) {
     return placeCheck;
   }
@@ -131,11 +140,12 @@ export async function uploadPlaceDocumentAction(
     return { ok: false, error: insertError.message };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlaceDocumentViews(tripId);
   return { ok: true, data: inserted };
 }
 
 export async function getPlaceDocumentSignedUrlAction(
+  tripId: string,
   documentId: string,
 ): Promise<ActionResult<{ url: string }>> {
   const supabase = await createClient();
@@ -162,9 +172,9 @@ export async function getPlaceDocumentSignedUrlAction(
   }
 
   const placeJoin = document.places as { trip_id: string } | { trip_id: string }[];
-  const tripId = Array.isArray(placeJoin) ? placeJoin[0]?.trip_id : placeJoin?.trip_id;
+  const documentTripId = Array.isArray(placeJoin) ? placeJoin[0]?.trip_id : placeJoin?.trip_id;
 
-  if (tripId !== CHICAGO_TRIP_ID) {
+  if (documentTripId !== tripId) {
     return { ok: false, error: "Documento no válido para este viaje." };
   }
 
@@ -183,6 +193,7 @@ export async function getPlaceDocumentSignedUrlAction(
 }
 
 export async function deletePlaceDocumentAction(
+  tripId: string,
   documentId: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
@@ -209,9 +220,9 @@ export async function deletePlaceDocumentAction(
   }
 
   const placeJoin = document.places as { trip_id: string } | { trip_id: string }[];
-  const tripId = Array.isArray(placeJoin) ? placeJoin[0]?.trip_id : placeJoin?.trip_id;
+  const documentTripId = Array.isArray(placeJoin) ? placeJoin[0]?.trip_id : placeJoin?.trip_id;
 
-  if (tripId !== CHICAGO_TRIP_ID) {
+  if (documentTripId !== tripId) {
     return { ok: false, error: "Documento no válido para este viaje." };
   }
 
@@ -232,6 +243,6 @@ export async function deletePlaceDocumentAction(
     return { ok: false, error: deleteError.message };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlaceDocumentViews(tripId);
   return { ok: true };
 }
