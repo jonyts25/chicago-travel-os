@@ -55,6 +55,7 @@ Abre [http://localhost:3000](http://localhost:3000). Login en `/login`, ruta pro
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon/public key de Supabase |
+| `NEXT_PUBLIC_SITE_URL` | URL pública de la app (ej. `https://tu-app.up.railway.app`) |
 
 4. Genera un dominio público en Railway (Settings → Networking → Generate Domain).
 5. Actualiza en Supabase la **Site URL** y **Redirect URLs** con tu dominio de Railway (`https://<tu-app>.up.railway.app/auth/callback`).

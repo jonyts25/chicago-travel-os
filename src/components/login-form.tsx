@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getSiteUrlForClient } from "@/lib/site-url";
 
 type LoginFormProps = {
   nextPath: string;
@@ -21,7 +22,7 @@ export function LoginForm({ nextPath, authError }: LoginFormProps) {
     setMessage(null);
 
     const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const redirectTo = `${getSiteUrlForClient()}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
