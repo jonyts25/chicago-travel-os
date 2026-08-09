@@ -9,6 +9,7 @@ import {
   buildSingleDayPlan,
   estimateRouteMinutesFromDurations,
 } from "@/lib/itinerary/optimizer/plan";
+import { recalculateDaySchedule } from "@/lib/itinerary/recalculate-day-schedule";
 import { averageLatLng } from "@/lib/itinerary/optimizer/geo";
 import {
   DEFAULT_VISIT_MINUTES,
@@ -432,6 +433,11 @@ async function applyOptimizerPlan(
     );
   }
 
+  const scheduleWarnings = await recalculateSchedulesForTrip(supabase, {
+    onlyDayId: mode === "replace-day" ? targetDayId : undefined,
+  });
+  warnings.push(...scheduleWarnings);
+
   return {
     ok: true,
     assignedByDay,
@@ -439,4 +445,56 @@ async function applyOptimizerPlan(
     withoutCoordinates: context.withoutCoordinates,
     warnings,
   };
+}
+
+async function recalculateSchedulesForTrip(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  options: { onlyDayId?: string },
+): Promise<string[]> {
+  const query = supabase
+    .from("itinerary_days")
+    .select("id, day_number")
+    .eq("trip_id", CHICAGO_TRIP_ID)
+    .order("day_number", { ascending: true });
+
+  const { data: days, error } = await query;
+
+  if (error) {
+    return [`No se pudieron recalcular horarios: ${error.message}`];
+  }
+
+  const warnings: string[] = [];
+
+  for (const day of days ?? []) {
+    if (options.onlyDayId && day.id !== options.onlyDayId) {
+      continue;
+    }
+
+    const { data: items, error: itemsError } = await supabase
+      .from("itinerary_items")
+      .select("id")
+      .eq("itinerary_day_id", day.id)
+      .limit(1);
+
+    if (itemsError) {
+      warnings.push(`Día ${day.day_number}: ${itemsError.message}`);
+      continue;
+    }
+
+    if (!items?.length) {
+      continue;
+    }
+
+    const result = await recalculateDaySchedule(supabase, day.id);
+    if (!result.ok) {
+      warnings.push(`Día ${day.day_number}: ${result.error ?? "error al calcular horarios"}`);
+      continue;
+    }
+
+    for (const warning of result.warnings) {
+      warnings.push(`Día ${day.day_number}: ${warning}`);
+    }
+  }
+
+  return warnings;
 }

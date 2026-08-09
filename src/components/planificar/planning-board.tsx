@@ -12,6 +12,7 @@ import {
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
+import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 
 type PlanningBoardProps = PlanningBoardData;
@@ -428,13 +429,24 @@ function DayPlanPanel({
                     #{index + 1}
                     {item.is_fixed ? " · Fijado" : ""}
                   </p>
-                  <PlaceOpenButton
-                    name={item.place.name}
-                    onOpen={() => onOpenPlace(item.place.id)}
-                  />
+                  <p className="mt-1 font-medium text-white">
+                    {item.start_time ? (
+                      <span className="text-blue-300">
+                        {formatScheduleTime(item.start_time)}
+                        {" — "}
+                      </span>
+                    ) : null}
+                    <PlaceOpenButton
+                      name={item.place.name}
+                      onOpen={() => onOpenPlace(item.place.id)}
+                    />
+                  </p>
                   <p className="mt-1 text-sm text-slate-400">
                     {formatCategory(item.place.category)} ·{" "}
                     {formatDurationMinutes(item.place.duration_minutes)}
+                    {item.end_time
+                      ? ` · hasta ${formatScheduleTime(item.end_time)}`
+                      : ""}
                   </p>
                 </div>
 
