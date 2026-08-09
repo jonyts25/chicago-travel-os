@@ -1,3 +1,5 @@
+import { hasCoordinates } from "@/lib/places/schema";
+
 export type GeocodeResult = {
   lat: number | null;
   lng: number | null;
@@ -6,6 +8,24 @@ export type GeocodeResult = {
 
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_DELAY_MS = 1000;
+
+const GENERIC_CHAIN_HINTS = [
+  "target",
+  "marshalls",
+  "marshall",
+  "t.j. maxx",
+  "tj maxx",
+  "walmart",
+  "costco",
+  "best buy",
+  "cvs",
+  "walgreens",
+  "starbucks",
+  "mcdonald",
+  "chipotle",
+  "trader joe",
+  "whole foods",
+];
 
 type NominatimResult = {
   lat?: string;
@@ -20,10 +40,43 @@ export function getNominatimUserAgent(): string {
   );
 }
 
-export async function geocodePlaceInChicago(
+export function buildGeocodeQueries(placeName: string): [string, string] {
+  const name = placeName.trim();
+
+  if (isLikelyGenericChain(name)) {
+    // Generic chains: city context first, then broader Illinois or name-only.
+    return [`${name}, Chicago, IL`, `${name}, Chicago, Illinois, USA`];
+  }
+
+  // Landmarks: city first, then state-wide or name-only for short titles.
+  if (name.split(/\s+/).length <= 3) {
+    return [`${name}, Chicago, IL`, name];
+  }
+
+  return [`${name}, Chicago, IL`, `${name}, Illinois, USA`];
+}
+
+export async function geocodePlaceWithRetries(
   placeName: string,
 ): Promise<GeocodeResult> {
-  const query = `${placeName}, Chicago, IL`;
+  const [firstQuery, secondQuery] = buildGeocodeQueries(placeName);
+
+  const firstAttempt = await searchNominatim(firstQuery);
+  if (hasCoordinates(firstAttempt)) {
+    return firstAttempt;
+  }
+
+  await delay(NOMINATIM_DELAY_MS);
+
+  const secondAttempt = await searchNominatim(secondQuery);
+  if (hasCoordinates(secondAttempt)) {
+    return secondAttempt;
+  }
+
+  return { lat: null, lng: null, address: null };
+}
+
+async function searchNominatim(query: string): Promise<GeocodeResult> {
   const url = new URL(NOMINATIM_BASE_URL);
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
@@ -66,18 +119,15 @@ export async function geocodePlaceInChicago(
   }
 }
 
-export async function geocodePlacesSequentially(
-  places: { name: string }[],
-): Promise<GeocodeResult[]> {
-  const results: GeocodeResult[] = [];
+function isLikelyGenericChain(name: string): boolean {
+  const normalized = name.trim().toLowerCase();
+  const wordCount = normalized.split(/\s+/).length;
 
-  for (const place of places) {
-    const geocoded = await geocodePlaceInChicago(place.name);
-    results.push(geocoded);
-    await delay(NOMINATIM_DELAY_MS);
+  if (GENERIC_CHAIN_HINTS.some((hint) => normalized.includes(hint))) {
+    return true;
   }
 
-  return results;
+  return wordCount <= 3 && normalized.length <= 24;
 }
 
 function delay(ms: number): Promise<void> {
@@ -85,3 +135,12 @@ function delay(ms: number): Promise<void> {
     setTimeout(resolve, ms);
   });
 }
+
+/** @deprecated Use geocodePlaceWithRetries */
+export async function geocodePlaceInChicago(
+  placeName: string,
+): Promise<GeocodeResult> {
+  return geocodePlaceWithRetries(placeName);
+}
+
+export { NOMINATIM_DELAY_MS };

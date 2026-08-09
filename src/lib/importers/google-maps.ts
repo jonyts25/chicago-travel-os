@@ -47,33 +47,54 @@ export function parseGoogleMapsExport(
   return parseCsvExport(trimmed);
 }
 
-export function partitionPlacesByDuplicates(
-  incoming: ParsedGooglePlace[],
+export type ParsedPlaceWithId = ParsedGooglePlace & { google_place_id: string };
+
+export type PlaceToUpdate = ParsedPlaceWithId & { existingId: string };
+
+export function partitionPlacesForImport(
+  incoming: ParsedPlaceWithId[],
   existing: ExistingPlace[],
-): { toInsert: ParsedGooglePlace[]; duplicates: ParsedGooglePlace[] } {
-  const toInsert: ParsedGooglePlace[] = [];
-  const duplicates: ParsedGooglePlace[] = [];
-  const knownIds = new Set(
-    existing
-      .map((place) => place.google_place_id)
-      .filter((id): id is string => Boolean(id)),
-  );
+): { toInsert: ParsedPlaceWithId[]; toUpdate: PlaceToUpdate[] } {
+  const existingByGoogleId = new Map<string, string>();
+
+  for (const place of existing) {
+    if (place.google_place_id) {
+      existingByGoogleId.set(place.google_place_id, place.id);
+    }
+  }
+
+  const toInsert: ParsedPlaceWithId[] = [];
+  const toUpdate: PlaceToUpdate[] = [];
+  const seenInCsv = new Set<string>();
 
   for (const place of incoming) {
-    if (!place.google_place_id) {
+    if (seenInCsv.has(place.google_place_id)) {
       continue;
     }
+    seenInCsv.add(place.google_place_id);
 
-    if (knownIds.has(place.google_place_id)) {
-      duplicates.push(place);
+    const existingId = existingByGoogleId.get(place.google_place_id);
+    if (existingId) {
+      toUpdate.push({ ...place, existingId });
       continue;
     }
 
     toInsert.push(place);
-    knownIds.add(place.google_place_id);
   }
 
-  return { toInsert, duplicates };
+  return { toInsert, toUpdate };
+}
+
+/** @deprecated Use partitionPlacesForImport */
+export function partitionPlacesByDuplicates(
+  incoming: ParsedGooglePlace[],
+  existing: ExistingPlace[],
+): { toInsert: ParsedGooglePlace[]; duplicates: ParsedGooglePlace[] } {
+  const withIds = incoming.filter(
+    (place): place is ParsedPlaceWithId => Boolean(place.google_place_id),
+  );
+  const { toInsert, toUpdate } = partitionPlacesForImport(withIds, existing);
+  return { toInsert, duplicates: toUpdate };
 }
 
 /**

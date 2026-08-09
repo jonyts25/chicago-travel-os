@@ -5,7 +5,7 @@ import type { ImportPlacesResult } from "@/lib/importers/types";
 
 const EMPTY_RESULT: ImportPlacesResult = {
   imported: 0,
-  duplicates: 0,
+  updated: 0,
   withoutCoordinates: 0,
   withoutAiCategory: 0,
   skippedNoId: 0,
