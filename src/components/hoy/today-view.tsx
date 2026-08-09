@@ -41,9 +41,25 @@ type TodayViewProps = {
   context: TodayPageContext;
 };
 
+function getManualDayModeMessage(context: TodayPageContext): string {
+  switch (context.tripPhase) {
+    case "before_trip":
+      return context.startDateLabel
+        ? `El viaje inicia el ${context.startDateLabel}. Selecciona un día para ver el itinerario; durante el viaje detectamos el día automáticamente.`
+        : "El viaje aún no comienza. Selecciona un día para ver el itinerario.";
+    case "after_trip":
+      return context.startDateLabel
+        ? `El viaje ya terminó (inició el ${context.startDateLabel}). Selecciona un día para revisar el itinerario.`
+        : "El viaje ya terminó. Selecciona un día para revisar el itinerario.";
+    default:
+      return "Sin fecha de inicio del viaje — recordamos tu selección en este dispositivo.";
+  }
+}
+
 export function TodayView({ context }: TodayViewProps) {
   const { showToast } = useToast();
-  const isManualDayMode = context.autoDayNumber == null;
+  const isAutoDayMode = context.tripPhase === "during_trip";
+  const isManualDayMode = !isAutoDayMode;
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     if (context.autoDayNumber != null) {
       return context.autoDayNumber;
@@ -192,7 +208,7 @@ export function TodayView({ context }: TodayViewProps) {
               })}
             </div>
             <p className={cn(typography.muted, "mt-3")}>
-              Sin fecha de inicio del viaje — recordamos tu selección en este dispositivo.
+              {getManualDayModeMessage(context)}
             </p>
           </>
         ) : (
