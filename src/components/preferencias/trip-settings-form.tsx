@@ -78,7 +78,7 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
       return null;
     }
 
-    return fromDatetimeLocalValue(raw);
+    return fromDatetimeLocalValue(raw, form.timezone);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -200,9 +200,12 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
               id="flight-arrival"
               name="flight_arrival"
               type="datetime-local"
-              value={toDatetimeLocalValue(form.flight_arrival)}
+              value={toDatetimeLocalValue(form.flight_arrival, form.timezone)}
               onChange={(event) =>
-                updateField("flight_arrival", fromDatetimeLocalValue(event.target.value))
+                updateField(
+                  "flight_arrival",
+                  fromDatetimeLocalValue(event.target.value, form.timezone),
+                )
               }
               className={inputs.base}
             />
@@ -227,9 +230,12 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
               id="flight-departure"
               name="flight_departure"
               type="datetime-local"
-              value={toDatetimeLocalValue(form.flight_departure)}
+              value={toDatetimeLocalValue(form.flight_departure, form.timezone)}
               onChange={(event) =>
-                updateField("flight_departure", fromDatetimeLocalValue(event.target.value))
+                updateField(
+                  "flight_departure",
+                  fromDatetimeLocalValue(event.target.value, form.timezone),
+                )
               }
               className={inputs.base}
             />
@@ -258,9 +264,12 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
               id="hotel-checkin"
               name="hotel_checkin"
               type="datetime-local"
-              value={toDatetimeLocalValue(form.hotel_checkin)}
+              value={toDatetimeLocalValue(form.hotel_checkin, form.timezone)}
               onChange={(event) =>
-                updateField("hotel_checkin", fromDatetimeLocalValue(event.target.value))
+                updateField(
+                  "hotel_checkin",
+                  fromDatetimeLocalValue(event.target.value, form.timezone),
+                )
               }
               className={inputs.base}
             />
@@ -272,9 +281,12 @@ export function TripSettingsForm({ initialSettings }: TripSettingsFormProps) {
               id="hotel-checkout"
               name="hotel_checkout"
               type="datetime-local"
-              value={toDatetimeLocalValue(form.hotel_checkout)}
+              value={toDatetimeLocalValue(form.hotel_checkout, form.timezone)}
               onChange={(event) =>
-                updateField("hotel_checkout", fromDatetimeLocalValue(event.target.value))
+                updateField(
+                  "hotel_checkout",
+                  fromDatetimeLocalValue(event.target.value, form.timezone),
+                )
               }
               className={inputs.base}
             />

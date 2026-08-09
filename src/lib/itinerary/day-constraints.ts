@@ -8,14 +8,15 @@ import {
 } from "@/lib/itinerary/schedule-day";
 import { PLACE_CATEGORIES } from "@/lib/places/place-detail";
 import {
-  chicagoDatetimeLocalValueToIso,
-  getChicagoClockMinutes,
-  getChicagoDateOnlyString,
-  isoToChicagoDatetimeLocalValue,
-} from "@/lib/trips/chicago-time";
+  getTripClockMinutes,
+  getTripDateOnlyString,
+  isoToTripDatetimeLocalValue,
+  tripDatetimeLocalValueToIso,
+} from "@/lib/trips/trip-time";
 import { resolveDayStartMinutesFromArrival } from "@/lib/trips/travel-info";
 
 export type TripDayConstraintsInput = {
+  timezone?: string | null;
   flightArrival: string | null;
   flightDeparture: string | null;
   airportTransferMinutes: number;
@@ -92,7 +93,10 @@ export function resolveDayConstraints(
   let dayStartSource: DayStartSource = "default";
 
   if (day.dayNumber === 1 && trip.flightArrival?.trim()) {
-    dayStartMinutes = resolveDayStartMinutesFromArrival(trip.flightArrival);
+    dayStartMinutes = resolveDayStartMinutesFromArrival(
+      trip.flightArrival,
+      trip.timezone,
+    );
     dayStartSource = "flight_arrival";
   }
 
@@ -139,7 +143,7 @@ function computeFlightDayEndMinutes(
     return null;
   }
 
-  if (!isFlightDepartureDay(day, flightDate, allDays)) {
+  if (!isFlightDepartureDay(day, flightDate, trip.timezone, allDays)) {
     return null;
   }
 
@@ -147,15 +151,17 @@ function computeFlightDayEndMinutes(
     flightDate.getTime() - trip.airportTransferMinutes * 60_000,
   );
 
-  return getChicagoClockMinutes(cutoff);
+  return getTripClockMinutes(cutoff, trip.timezone);
 }
 
 function isFlightDepartureDay(
   day: ItineraryDayConstraintsInput,
   flightDate: Date,
+  timezone: string | null | undefined,
   allDays: ItineraryDayConstraintsInput[],
 ): boolean {
-  const flightDateOnly = getChicagoDateOnlyString(flightDate) ?? formatDateOnly(flightDate);
+  const flightDateOnly =
+    getTripDateOnlyString(flightDate, timezone) ?? formatDateOnly(flightDate);
   const dayWithMatchingDate = allDays.find(
     (candidate) => candidate.date && candidate.date.startsWith(flightDateOnly),
   );
@@ -181,12 +187,18 @@ function formatDateOnly(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function toDatetimeLocalValue(iso: string | null | undefined): string {
-  return isoToChicagoDatetimeLocalValue(iso);
+export function toDatetimeLocalValue(
+  iso: string | null | undefined,
+  timezone?: string | null,
+): string {
+  return isoToTripDatetimeLocalValue(iso, timezone);
 }
 
-export function fromDatetimeLocalValue(value: string): string | null {
-  return chicagoDatetimeLocalValueToIso(value);
+export function fromDatetimeLocalValue(
+  value: string,
+  timezone?: string | null,
+): string | null {
+  return tripDatetimeLocalValueToIso(value, timezone);
 }
 
 export function formatDayStartSourceLabel(source: DayStartSource): string {

@@ -1,10 +1,11 @@
 import { TRIP_DAY_COUNT } from "@/lib/constants";
-import { getChicagoDateOnlyString } from "@/lib/trips/chicago-time";
+import { getTripDateOnlyString } from "@/lib/trips/trip-time";
 
 export type TripCalendarAnchorInput = {
   startDate: string | null;
   hotelCheckin: string | null;
   flightArrival: string | null;
+  timezone?: string | null;
 };
 
 export type ResolvedTripDayCalendar = {
@@ -46,14 +47,17 @@ export function formatDateOnly(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-export function parseTripTimestampDateOnly(value: string | null | undefined): Date | null {
+export function parseTripTimestampDateOnly(
+  value: string | null | undefined,
+  timezone?: string | null,
+): Date | null {
   if (!value?.trim()) {
     return null;
   }
 
-  const chicagoDate = getChicagoDateOnlyString(value);
-  if (chicagoDate) {
-    return parseDateOnly(chicagoDate);
+  const tripDate = getTripDateOnlyString(value, timezone);
+  if (tripDate) {
+    return parseDateOnly(tripDate);
   }
 
   return parseDateOnly(value);
@@ -66,7 +70,7 @@ export function resolveTripAnchorDate(input: TripCalendarAnchorInput): string | 
     const parsed =
       candidate === input.startDate
         ? parseDateOnly(candidate)
-        : parseTripTimestampDateOnly(candidate);
+        : parseTripTimestampDateOnly(candidate, input.timezone);
     if (parsed) {
       return formatDateOnly(parsed);
     }
@@ -128,11 +132,17 @@ export function describeTripAnchorSource(input: TripCalendarAnchorInput): string
     return "fecha de inicio del viaje";
   }
 
-  if (parseDateOnly(input.hotelCheckin) || parseTripTimestampDateOnly(input.hotelCheckin)) {
+  if (
+    parseDateOnly(input.hotelCheckin) ||
+    parseTripTimestampDateOnly(input.hotelCheckin, input.timezone)
+  ) {
     return "check-in del hotel";
   }
 
-  if (parseDateOnly(input.flightArrival) || parseTripTimestampDateOnly(input.flightArrival)) {
+  if (
+    parseDateOnly(input.flightArrival) ||
+    parseTripTimestampDateOnly(input.flightArrival, input.timezone)
+  ) {
     return "llegada del vuelo";
   }
 

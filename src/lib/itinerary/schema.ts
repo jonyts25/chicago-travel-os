@@ -67,6 +67,7 @@ export type PlanningDay = {
 };
 
 export type TripPlanningSettings = {
+  timezone: string;
   start_date: string | null;
   flight_arrival: string | null;
   flight_departure: string | null;

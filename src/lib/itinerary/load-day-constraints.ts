@@ -31,6 +31,7 @@ async function loadDayConstraintContext(
   }
 
   const tripConstraints: TripDayConstraintsInput = {
+    timezone: trip?.timezone ?? null,
     flightArrival: trip?.flight_arrival ?? null,
     flightDeparture: trip?.flight_departure ?? null,
     airportTransferMinutes: trip?.airport_transfer_minutes ?? 90,

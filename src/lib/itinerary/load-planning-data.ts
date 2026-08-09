@@ -64,6 +64,7 @@ export async function loadPlanningBoardData(): Promise<{
     startDate: tripSettings.start_date,
     hotelCheckin: tripSettings.hotel_checkin,
     flightArrival: tripSettings.flight_arrival,
+    timezone: tripSettings.timezone,
   };
   const tripAnchorDate = resolveTripAnchorDate(anchorInput);
   const tripAnchorSource = describeTripAnchorSource(anchorInput);
@@ -107,6 +108,7 @@ export async function loadPlanningBoardData(): Promise<{
   }
 
   const tripConstraints: TripDayConstraintsInput = {
+    timezone: tripSettings.timezone,
     flightArrival: tripSettings.flight_arrival,
     flightDeparture: tripSettings.flight_departure,
     airportTransferMinutes: tripSettings.airport_transfer_minutes,
