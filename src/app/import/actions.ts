@@ -1,10 +1,11 @@
 "use server";
 
-import { importGoogleMapsPlaces } from "@/lib/places/import-places";
 import { regeocodeMissingPlaces } from "@/lib/places/regeocode-missing-places";
+import { importGoogleMapsPlaces } from "@/lib/places/import-places";
 import type { ImportPlacesResult } from "@/lib/importers/types";
 import type { RegeocodeMissingPlacesResult } from "@/lib/places/regeocode-missing-places";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 const EMPTY_RESULT: ImportPlacesResult = {
@@ -17,6 +18,7 @@ const EMPTY_RESULT: ImportPlacesResult = {
 };
 
 export async function importPlacesAction(
+  tripId: string,
   formData: FormData,
 ): Promise<ImportPlacesResult> {
   const file = formData.get("file");
@@ -37,10 +39,12 @@ export async function importPlacesAction(
   }
 
   const content = await file.text();
-  return importGoogleMapsPlaces(content, file.name);
+  return importGoogleMapsPlaces(tripId, content, file.name);
 }
 
-export async function regeocodeMissingPlacesAction(): Promise<RegeocodeMissingPlacesResult> {
+export async function regeocodeMissingPlacesAction(
+  tripId: string,
+): Promise<RegeocodeMissingPlacesResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,12 +61,12 @@ export async function regeocodeMissingPlacesAction(): Promise<RegeocodeMissingPl
   }
 
   try {
-    const result = await regeocodeMissingPlaces(supabase);
+    const result = await regeocodeMissingPlaces(supabase, tripId);
 
     if (result.resolved > 0) {
-      revalidatePath("/import");
-      revalidatePath("/planificar");
-      revalidatePath("/map");
+      for (const path of revalidateTripPaths(tripId)) {
+        revalidatePath(path);
+      }
     }
 
     return result;

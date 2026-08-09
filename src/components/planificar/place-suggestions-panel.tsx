@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast-provider";
 import type { PlaceSuggestion } from "@/lib/ai/suggest-places";
 import { cn, surfaces, typography } from "@/lib/ui/styles";
 
-export function PlaceSuggestionsPanel() {
+export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [isSuggesting, startSuggesting] = useTransition();
@@ -35,7 +35,7 @@ export function PlaceSuggestionsPanel() {
     setError(null);
 
     startSuggesting(async () => {
-      const result = await suggestPlacesAction();
+      const result = await suggestPlacesAction(tripId);
       if (!result.ok) {
         setSuggestions([]);
         setSelectedKeys(new Set());
@@ -75,7 +75,7 @@ export function PlaceSuggestionsPanel() {
     setError(null);
 
     startAdding(async () => {
-      const result = await addSelectedPlaceSuggestionsAction(selected);
+      const result = await addSelectedPlaceSuggestionsAction(tripId, selected);
       if (!result.ok) {
         setError(result.error ?? "No se pudieron agregar los lugares.");
         return;

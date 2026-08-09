@@ -8,17 +8,26 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function HoyPage() {
+export default async function HoyPage({
+  params,
+}: {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/hoy");
+    redirect(`/login?next=/trips/${tripId}/hoy`);
   }
 
-  const { context, error } = await loadTodayPageContext();
+  const { context, error } = await loadTodayPageContext(tripId);
 
   return (
     <PageContainer className="max-w-lg">
@@ -34,7 +43,7 @@ export default async function HoyPage() {
           technicalDetails={error ?? "Contexto no disponible."}
         />
       ) : (
-        <TodayView context={context} />
+        <TodayView tripId={tripId} context={context} />
       )}
     </PageContainer>
   );

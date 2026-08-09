@@ -38,6 +38,7 @@ import { getDayTravelReminder } from "@/lib/trips/travel-info";
 import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
 type TodayViewProps = {
+  tripId: string;
   context: TodayPageContext;
 };
 
@@ -56,7 +57,7 @@ function getManualDayModeMessage(context: TodayPageContext): string {
   }
 }
 
-export function TodayView({ context }: TodayViewProps) {
+export function TodayView({ tripId, context }: TodayViewProps) {
   const { showToast } = useToast();
   const isAutoDayMode = context.tripPhase === "during_trip";
   const isManualDayMode = !isAutoDayMode;
@@ -81,7 +82,7 @@ export function TodayView({ context }: TodayViewProps) {
   const loadDay = useCallback((dayNumber: number) => {
     startLoadDay(async () => {
       setLoadError(null);
-      const result = await loadTodayDayAction(dayNumber);
+      const result = await loadTodayDayAction(tripId, dayNumber);
       if (!result.ok) {
         setDayData(null);
         setLoadError(result.error);
@@ -89,7 +90,7 @@ export function TodayView({ context }: TodayViewProps) {
       }
       setDayData(result.data);
     });
-  }, []);
+  }, [tripId]);
 
   useEffect(() => {
     if (isManualDayMode) {
@@ -159,7 +160,7 @@ export function TodayView({ context }: TodayViewProps) {
     setDayData({ ...dayData, blocks: optimisticBlocks });
 
     startUpdate(async () => {
-      const result = await updateTodayBlockStatusAction(blockId, status);
+      const result = await updateTodayBlockStatusAction(tripId, blockId, status);
       if (!result.ok) {
         setActionError(result.error);
         loadDay(activeDay);

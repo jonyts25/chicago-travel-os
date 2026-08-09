@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import type { SuggestionContext, TripTravelerPreferences, UserProfile } from "@/lib/users/schema";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,7 +30,7 @@ function buildTravelerLabel(
   return index === 1 ? "Otro viajero" : `Viajero ${index + 1}`;
 }
 
-export async function loadSuggestionContext(): Promise<{
+export async function loadSuggestionContext(tripId: string): Promise<{
   context: SuggestionContext | null;
   error: string | null;
 }> {
@@ -49,13 +48,13 @@ export async function loadSuggestionContext(): Promise<{
       supabase
         .from("trips")
         .select("base_location")
-        .eq("id", CHICAGO_TRIP_ID)
+        .eq("id", tripId)
         .maybeSingle(),
       supabase
         .from("trip_members")
         .select("user_id, users ( id, preferences )")
-        .eq("trip_id", CHICAGO_TRIP_ID),
-      supabase.from("places").select("name").eq("trip_id", CHICAGO_TRIP_ID),
+        .eq("trip_id", tripId),
+      supabase.from("places").select("name").eq("trip_id", tripId),
     ]);
 
   if (tripError) {

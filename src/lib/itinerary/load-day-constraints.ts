@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import {
   resolveDayConstraints,
   type ItineraryDayConstraintsInput,
@@ -9,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 async function loadDayConstraintContext(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   itineraryDayId: string,
 ) {
   const [{ data: day, error: dayError }, { data: trip, error: tripError }, { data: allDays, error: daysError }] =
@@ -17,12 +17,13 @@ async function loadDayConstraintContext(
         .from("itinerary_days")
         .select("id, day_number, date, focus, day_end_override")
         .eq("id", itineraryDayId)
+        .eq("trip_id", tripId)
         .maybeSingle(),
-      supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", CHICAGO_TRIP_ID).maybeSingle(),
+      supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", tripId).maybeSingle(),
       supabase
         .from("itinerary_days")
         .select("id, day_number, date, focus, day_end_override")
-        .eq("trip_id", CHICAGO_TRIP_ID)
+        .eq("trip_id", tripId)
         .order("day_number", { ascending: true }),
     ]);
 
@@ -60,16 +61,18 @@ async function loadDayConstraintContext(
 
 export async function loadDayEndWarningMinutes(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   itineraryDayId: string,
 ): Promise<number> {
-  const resolved = await loadDayConstraintContext(supabase, itineraryDayId);
+  const resolved = await loadDayConstraintContext(supabase, tripId, itineraryDayId);
   return resolved?.dayEndMinutes ?? 22 * 60;
 }
 
 export async function loadDayStartMinutes(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   itineraryDayId: string,
 ): Promise<number> {
-  const resolved = await loadDayConstraintContext(supabase, itineraryDayId);
+  const resolved = await loadDayConstraintContext(supabase, tripId, itineraryDayId);
   return resolved?.dayStartMinutes ?? 9 * 60;
 }

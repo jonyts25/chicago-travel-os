@@ -10,14 +10,15 @@ import {
   loadTodayPageContext,
   resolveDayNumberForItem,
 } from "@/lib/hoy/load-today-data";
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 export async function loadTodayDayAction(
+  tripId: string,
   dayNumber: number,
 ): Promise<{ ok: true; data: TodayDayData } | { ok: false; error: string }> {
-  const { data, error } = await loadTodayDayData(dayNumber);
+  const { data, error } = await loadTodayDayData(tripId, dayNumber);
 
   if (error || !data) {
     return { ok: false, error: error ?? "No se pudo cargar el día." };
@@ -27,6 +28,7 @@ export async function loadTodayDayAction(
 }
 
 export async function updateTodayBlockStatusAction(
+  tripId: string,
   itemId: string,
   status: typeof ITINERARY_ITEM_STATUS_DONE | typeof ITINERARY_ITEM_STATUS_SKIPPED,
 ): Promise<
@@ -42,7 +44,7 @@ export async function updateTodayBlockStatusAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const dayNumber = await resolveDayNumberForItem(itemId);
+  const dayNumber = await resolveDayNumberForItem(tripId, itemId);
   if (!dayNumber) {
     return { ok: false, error: "Bloque no encontrado." };
   }
@@ -58,9 +60,9 @@ export async function updateTodayBlockStatusAction(
   }
 
   const dayJoin = item?.itinerary_days as { trip_id: string } | { trip_id: string }[] | undefined;
-  const tripId = Array.isArray(dayJoin) ? dayJoin[0]?.trip_id : dayJoin?.trip_id;
+  const itemTripId = Array.isArray(dayJoin) ? dayJoin[0]?.trip_id : dayJoin?.trip_id;
 
-  if (!item || tripId !== CHICAGO_TRIP_ID) {
+  if (!item || itemTripId !== tripId) {
     return { ok: false, error: "Bloque no válido para este viaje." };
   }
 
@@ -73,10 +75,11 @@ export async function updateTodayBlockStatusAction(
     return { ok: false, error: updateError.message };
   }
 
-  revalidatePath("/hoy");
-  revalidatePath("/planificar");
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
 
-  const refreshed = await loadTodayDayData(dayNumber);
+  const refreshed = await loadTodayDayData(tripId, dayNumber);
   if (refreshed.error || !refreshed.data) {
     return { ok: false, error: refreshed.error ?? "No se pudo refrescar el día." };
   }
@@ -84,14 +87,14 @@ export async function updateTodayBlockStatusAction(
   return { ok: true, data: refreshed.data };
 }
 
-export async function getTodayBootstrapAction(): Promise<
+export async function getTodayBootstrapAction(tripId: string): Promise<
   | {
       ok: true;
       context: Awaited<ReturnType<typeof loadTodayPageContext>>["context"];
     }
   | { ok: false; error: string }
 > {
-  const { context, error } = await loadTodayPageContext();
+  const { context, error } = await loadTodayPageContext(tripId);
 
   if (error || !context) {
     return { ok: false, error: error ?? "No se pudo cargar el contexto." };

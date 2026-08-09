@@ -17,18 +17,28 @@ type AgregarPageProps = {
   }>;
 };
 
-export default async function AgregarLugarPage({ searchParams }: AgregarPageProps) {
+export default async function AgregarLugarPage({
+  params,
+  searchParams,
+}: AgregarPageProps & {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/import/agregar");
+    redirect(`/login?next=/trips/${tripId}/import/agregar`);
   }
 
-  const params = await searchParams;
-  const initialMapsUrl = resolveMapsUrlFromShareParams(params);
+  const routeSearchParams = await searchParams;
+  const initialMapsUrl = resolveMapsUrlFromShareParams(routeSearchParams);
   const sharedFromAndroid = Boolean(initialMapsUrl);
 
   return (
@@ -45,7 +55,7 @@ export default async function AgregarLugarPage({ searchParams }: AgregarPageProp
             Enlace recibido desde Compartir — revisa y confirma abajo.
           </p>
         ) : null}
-        <AddPlaceForm initialMapsUrl={initialMapsUrl} />
+        <AddPlaceForm tripId={tripId} initialMapsUrl={initialMapsUrl} />
       </Card>
     </PageContainer>
   );

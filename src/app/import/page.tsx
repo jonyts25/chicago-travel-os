@@ -5,24 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { countMissingCoordinatesPlaces } from "@/lib/places/regeocode-missing-places";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function ImportPage() {
+export default async function ImportPage({
+  params,
+}: {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/import");
+    redirect(`/login?next=/trips/${tripId}/import`);
   }
 
-  const missingCount = await countMissingCoordinatesPlaces(supabase, CHICAGO_TRIP_ID);
+  const missingCount = await countMissingCoordinatesPlaces(supabase, tripId);
 
   return (
     <PageContainer>
@@ -36,10 +44,10 @@ export default async function ImportPage() {
         title="Importar CSV"
         subtitle='Sube el export Saved con columnas Título, Nota, URL, Etiquetas, Comentario.'
       >
-        <ImportPlacesForm />
+        <ImportPlacesForm tripId={tripId} />
       </Card>
 
-      <RegeocodeMissingPlacesCard missingCount={missingCount} />
+      <RegeocodeMissingPlacesCard tripId={tripId} missingCount={missingCount} />
 
       <Card
         className="mt-6"

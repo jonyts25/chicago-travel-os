@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import { NOMINATIM_DELAY_MS } from "@/lib/geocoding/nominatim";
 import { geocodePlaceRecord } from "@/lib/places/geocode-place";
@@ -22,7 +21,7 @@ type PlaceRow = {
 
 export async function countMissingCoordinatesPlaces(
   supabase: SupabaseClient,
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<number> {
   const places = await loadMissingCoordinatePlaces(supabase, tripId);
   return places.length;
@@ -30,7 +29,7 @@ export async function countMissingCoordinatesPlaces(
 
 export async function regeocodeMissingPlaces(
   supabase: SupabaseClient,
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<RegeocodeMissingPlacesResult> {
   const geocodingContext = await loadTripGeocodingContext(supabase, tripId);
   const places = await loadMissingCoordinatePlaces(supabase, tripId);

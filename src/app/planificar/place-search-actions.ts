@@ -11,6 +11,7 @@ import {
   type NominatimPlaceSearchResult,
 } from "@/lib/geocoding/nominatim-search";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 export type SearchPlacesActionResult =
@@ -18,6 +19,7 @@ export type SearchPlacesActionResult =
   | { ok: false; error: string; results: [] };
 
 export async function searchPlacesAction(
+  tripId: string,
   query: string,
 ): Promise<SearchPlacesActionResult> {
   const supabase = await createClient();
@@ -38,13 +40,14 @@ export async function searchPlacesAction(
     };
   }
 
-  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const geocodingContext = await loadTripGeocodingContext(supabase, tripId);
   const results = await searchPlacesWithNominatim(trimmedQuery, geocodingContext);
 
   return { ok: true, results };
 }
 
 export async function addPlaceFromSearchAction(
+  tripId: string,
   selection: AddPlaceFromSearchInput,
   options?: { forceDuplicate?: boolean },
 ): Promise<AddPlaceFromSearchResult> {
@@ -58,12 +61,12 @@ export async function addPlaceFromSearchAction(
   }
 
   try {
-    const result = await addPlaceFromSearchSelection(supabase, selection, options);
+    const result = await addPlaceFromSearchSelection(supabase, tripId, selection, options);
 
     if (result.ok) {
-      revalidatePath("/planificar");
-      revalidatePath("/planificar/lugares");
-      revalidatePath("/map");
+      for (const path of revalidateTripPaths(tripId)) {
+        revalidatePath(path);
+      }
     }
 
     return result;

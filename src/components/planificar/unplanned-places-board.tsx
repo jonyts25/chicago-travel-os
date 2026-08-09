@@ -21,9 +21,12 @@ type PlacePool = "located" | "unlocated";
 type UnplannedPlacesBoardProps = Pick<
   PlanningBoardData,
   "days" | "unplannedPlaces" | "unlocatedPlaces"
->;
+> & {
+  tripId: string;
+};
 
 export function UnplannedPlacesBoard({
+  tripId,
   days,
   unplannedPlaces,
   unlocatedPlaces,
@@ -64,7 +67,7 @@ export function UnplannedPlacesBoard({
   function runAssign(placeId: string, dayId: string) {
     setActionError(null);
     startTransition(async () => {
-      const result = await assignPlaceToDayAction(placeId, dayId);
+      const result = await assignPlaceToDayAction(tripId, placeId, dayId);
       if (!result.ok) {
         setActionError(result.error ?? "No se pudo agregar el lugar al día.");
         return;
@@ -77,6 +80,7 @@ export function UnplannedPlacesBoard({
   return (
     <div className="flex flex-col gap-6">
       <PlaceDetailModal
+        tripId={tripId}
         placeId={selectedPlaceId}
         days={days.map((day) => ({ id: day.id, day_number: day.day_number }))}
         onClose={() => setSelectedPlaceId(null)}
@@ -100,9 +104,9 @@ export function UnplannedPlacesBoard({
         />
       ) : null}
 
-      <PlaceSearchPanel disabled={isPending} onPlaceAdded={() => router.refresh()} />
+      <PlaceSearchPanel tripId={tripId} disabled={isPending} onPlaceAdded={() => router.refresh()} />
 
-      <PlaceSuggestionsPanel />
+      <PlaceSuggestionsPanel tripId={tripId} />
 
       <Card
         title={placePool === "located" ? "Sin planear" : "Sin coordenadas"}

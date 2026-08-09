@@ -1,7 +1,6 @@
 "use server";
 
 import {
-  CHICAGO_TRIP_ID,
   PLACE_STATUS_PLANNED,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
@@ -12,6 +11,7 @@ import {
   runSingleDayItineraryOptimizer,
 } from "@/lib/itinerary/optimizer/run-optimizer";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 export type PlanningActionResult = {
@@ -19,7 +19,14 @@ export type PlanningActionResult = {
   error?: string;
 };
 
+function revalidatePlanningViews(tripId: string): void {
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
+}
+
 export async function assignPlaceToDayAction(
+  tripId: string,
   placeId: string,
   itineraryDayId: string,
 ): Promise<PlanningActionResult> {
@@ -36,7 +43,7 @@ export async function assignPlaceToDayAction(
     .from("places")
     .select("id, status")
     .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (placeError) {
@@ -55,7 +62,7 @@ export async function assignPlaceToDayAction(
     .from("itinerary_days")
     .select("id")
     .eq("id", itineraryDayId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -95,7 +102,7 @@ export async function assignPlaceToDayAction(
     .from("places")
     .update({ status: PLACE_STATUS_PLANNED })
     .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (updateError) {
     await supabase
@@ -107,16 +114,17 @@ export async function assignPlaceToDayAction(
     return { ok: false, error: updateError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, itineraryDayId);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlanningViews(tripId);
   return { ok: true };
 }
 
 export async function removePlaceFromDayAction(
+  tripId: string,
   itineraryItemId: string,
 ): Promise<PlanningActionResult> {
   const supabase = await createClient();
@@ -150,7 +158,7 @@ export async function removePlaceFromDayAction(
     .from("itinerary_days")
     .select("id")
     .eq("id", item.itinerary_day_id)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -174,22 +182,23 @@ export async function removePlaceFromDayAction(
     .from("places")
     .update({ status: PLACE_STATUS_UNPLANNED })
     .eq("id", item.place_id)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (updateError) {
     return { ok: false, error: updateError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, item.itinerary_day_id);
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, item.itinerary_day_id);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlanningViews(tripId);
   return { ok: true };
 }
 
 export async function moveItineraryItemAction(
+  tripId: string,
   itineraryItemId: string,
   direction: "up" | "down",
 ): Promise<PlanningActionResult> {
@@ -224,7 +233,7 @@ export async function moveItineraryItemAction(
     .from("itinerary_days")
     .select("id")
     .eq("id", current.itinerary_day_id)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -293,16 +302,17 @@ export async function moveItineraryItemAction(
     return { ok: false, error: updateNeighborError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, current.itinerary_day_id);
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, current.itinerary_day_id);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlanningViews(tripId);
   return { ok: true };
 }
 
 export async function clearDayAction(
+  tripId: string,
   itineraryDayId: string,
 ): Promise<PlanningActionResult> {
   const supabase = await createClient();
@@ -318,7 +328,7 @@ export async function clearDayAction(
     .from("itinerary_days")
     .select("id")
     .eq("id", itineraryDayId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -340,7 +350,7 @@ export async function clearDayAction(
 
   const removableItems = (dayItems ?? []).filter((item) => !item.is_fixed);
   if (removableItems.length === 0) {
-    revalidatePath("/planificar");
+    revalidatePlanningViews(tripId);
     return { ok: true };
   }
 
@@ -360,40 +370,42 @@ export async function clearDayAction(
     .from("places")
     .update({ status: PLACE_STATUS_UNPLANNED })
     .in("id", placeIds)
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (unplanError) {
     return { ok: false, error: unplanError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, itineraryDayId);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlanningViews(tripId);
   return { ok: true };
 }
 
-export async function generateItineraryAction(): Promise<OptimizerSummary> {
-  const result = await runFullItineraryOptimizer();
+export async function generateItineraryAction(tripId: string): Promise<OptimizerSummary> {
+  const result = await runFullItineraryOptimizer(tripId);
   if (result.ok) {
-    revalidatePath("/planificar");
+    revalidatePlanningViews(tripId);
   }
   return result;
 }
 
 export async function regenerateDayItineraryAction(
+  tripId: string,
   itineraryDayId: string,
 ): Promise<OptimizerSummary> {
-  const result = await runSingleDayItineraryOptimizer(itineraryDayId);
+  const result = await runSingleDayItineraryOptimizer(tripId, itineraryDayId);
   if (result.ok) {
-    revalidatePath("/planificar");
+    revalidatePlanningViews(tripId);
   }
   return result;
 }
 
 export async function updateItineraryDaySettingsAction(
+  tripId: string,
   itineraryDayId: string,
   focus: string | null,
   dayEndOverride: string | null,
@@ -411,7 +423,7 @@ export async function updateItineraryDaySettingsAction(
     .from("itinerary_days")
     .select("id")
     .eq("id", itineraryDayId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .maybeSingle();
 
   if (dayError) {
@@ -434,11 +446,11 @@ export async function updateItineraryDaySettingsAction(
     return { ok: false, error: updateError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, itineraryDayId);
   if (!scheduleResult.ok) {
     return { ok: false, error: scheduleResult.error };
   }
 
-  revalidatePath("/planificar");
+  revalidatePlanningViews(tripId);
   return { ok: true };
 }

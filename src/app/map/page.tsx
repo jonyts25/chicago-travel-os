@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { CHICAGO_TRIP_ID, PLACE_STATUS_UNPLANNED } from "@/lib/constants";
+import { PLACE_STATUS_UNPLANNED } from "@/lib/constants";
 import { hasCoordinates, type PlaceMapMarker } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 type MapPageProps = {
+  params: Promise<{ tripId?: string }>;
   searchParams: Promise<{
     pool?: string;
     nearLat?: string;
@@ -29,12 +30,17 @@ function parseCoordinate(value: string | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export default async function MapPage({ searchParams }: MapPageProps) {
-  const params = await searchParams;
-  const pool = params.pool?.trim().toLowerCase();
+export default async function MapPage({ params, searchParams }: MapPageProps) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
+  const routeParams = await searchParams;
+  const pool = routeParams.pool?.trim().toLowerCase();
   const filterUnplanned = pool === "unplanned";
-  const nearLat = parseCoordinate(params.nearLat);
-  const nearLng = parseCoordinate(params.nearLng);
+  const nearLat = parseCoordinate(routeParams.nearLat);
+  const nearLng = parseCoordinate(routeParams.nearLng);
   const hasNearPoint = nearLat != null && nearLng != null;
 
   const supabase = await createClient();
@@ -43,13 +49,13 @@ export default async function MapPage({ searchParams }: MapPageProps) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/map");
+    redirect(`/login?next=/trips/${tripId}/map`);
   }
 
   let query = supabase
     .from("places")
     .select("id, name, lat, lng, category, status, address")
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .not("lat", "is", null)
     .not("lng", "is", null);
 

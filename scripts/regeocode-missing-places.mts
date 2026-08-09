@@ -1,9 +1,5 @@
-import { CHICAGO_TRIP_ID } from "../src/lib/constants";
+import { createServiceClient, isServiceClientConfigured } from "../src/lib/supabase/service";
 import { regeocodeMissingPlaces } from "../src/lib/places/regeocode-missing-places";
-import {
-  createServiceClient,
-  isServiceClientConfigured,
-} from "../src/lib/supabase/service";
 
 async function main() {
   if (!isServiceClientConfigured()) {
@@ -13,15 +9,22 @@ async function main() {
     process.exit(1);
   }
 
+  const tripId = process.argv[2] ?? process.env.TRIP_ID;
+  if (!tripId?.trim()) {
+    console.error("Usage: npx tsx scripts/regeocode-missing-places.mts <tripId>");
+    console.error("Or set TRIP_ID in the environment.");
+    process.exit(1);
+  }
+
   const supabase = createServiceClient();
-  console.log(`Re-geocoding missing places for trip ${CHICAGO_TRIP_ID}...`);
+  console.log(`Re-geocoding missing places for trip ${tripId}...`);
   console.log(
     `Nominatim User-Agent: ${process.env.NOMINATIM_USER_AGENT ?? "(default)"}`,
   );
   console.log("Rate limit: 1 request/second between places.");
   console.log("---");
 
-  const result = await regeocodeMissingPlaces(supabase, CHICAGO_TRIP_ID);
+  const result = await regeocodeMissingPlaces(supabase, tripId);
 
   console.log(JSON.stringify(result, null, 2));
 

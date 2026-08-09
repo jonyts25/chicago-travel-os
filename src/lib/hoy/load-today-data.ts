@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { ensureItineraryDays } from "@/lib/itinerary/ensure-days";
 import {
   getTripDayFromStartDate,
@@ -44,7 +43,7 @@ type ItemRow = {
     | null;
 };
 
-export async function loadTodayPageContext(): Promise<{
+export async function loadTodayPageContext(tripId: string): Promise<{
   context: TodayPageContext | null;
   error: string | null;
 }> {
@@ -62,9 +61,9 @@ export async function loadTodayPageContext(): Promise<{
       supabase
         .from("trips")
         .select(`id, ${TRIP_TRAVEL_SELECT}`)
-        .eq("id", CHICAGO_TRIP_ID)
+        .eq("id", tripId)
         .maybeSingle(),
-      ensureItineraryDays(CHICAGO_TRIP_ID),
+      ensureItineraryDays(tripId),
     ]);
 
   if (tripError) {
@@ -101,7 +100,10 @@ export async function loadTodayPageContext(): Promise<{
   };
 }
 
-export async function loadTodayDayData(dayNumber: number): Promise<{
+export async function loadTodayDayData(
+  tripId: string,
+  dayNumber: number,
+): Promise<{
   data: TodayDayData | null;
   error: string | null;
 }> {
@@ -117,7 +119,7 @@ export async function loadTodayDayData(dayNumber: number): Promise<{
   const { data: day, error: dayError } = await supabase
     .from("itinerary_days")
     .select("id, day_number")
-    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("trip_id", tripId)
     .eq("day_number", dayNumber)
     .maybeSingle();
 
@@ -179,6 +181,7 @@ export async function loadTodayDayData(dayNumber: number): Promise<{
 }
 
 export async function resolveDayNumberForItem(
+  tripId: string,
   itemId: string,
 ): Promise<number | null> {
   const supabase = await createClient();
@@ -196,7 +199,7 @@ export async function resolveDayNumberForItem(
   const dayJoin = data.itinerary_days as { day_number: number; trip_id: string } | { day_number: number; trip_id: string }[];
   const day = Array.isArray(dayJoin) ? dayJoin[0] : dayJoin;
 
-  if (!day || day.trip_id !== CHICAGO_TRIP_ID) {
+  if (!day || day.trip_id !== tripId) {
     return null;
   }
 

@@ -28,12 +28,13 @@ import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
 import { buttons, cn, colors, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceDetailModalProps = {
+  tripId: string;
   placeId: string | null;
   days: { id: string; day_number: number }[];
   onClose: () => void;
 };
 
-export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalProps) {
+export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetailModalProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -64,7 +65,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
     setError(null);
     setShowDeleteConfirm(false);
 
-    getPlaceDetailAction(placeId).then((result) => {
+    getPlaceDetailAction(tripId, placeId).then((result) => {
       if (cancelled) {
         return;
       }
@@ -84,7 +85,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
     return () => {
       cancelled = true;
     };
-  }, [placeId]);
+  }, [placeId, tripId]);
 
   function hydrateForm(detail: PlaceDetail) {
     setName(detail.name);
@@ -133,7 +134,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         }
       }
 
-      const result = await updatePlaceAction({
+      const result = await updatePlaceAction(tripId, {
         placeId,
         name,
         category: category || null,
@@ -157,7 +158,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
         return;
       }
 
-      const refreshed = await getPlaceDetailAction(placeId);
+      const refreshed = await getPlaceDetailAction(tripId, placeId);
       if (refreshed.ok) {
         hydrateForm(refreshed.place);
         setPlace(refreshed.place);
@@ -175,13 +176,13 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
 
     setError(null);
     startTransition(async () => {
-      const result = await retryPlaceGeocodingAction(placeId);
+      const result = await retryPlaceGeocodingAction(tripId, placeId);
       if (!result.ok) {
         setError(result.error ?? "No se pudo geocodificar.");
         return;
       }
 
-      const refreshed = await getPlaceDetailAction(placeId);
+      const refreshed = await getPlaceDetailAction(tripId, placeId);
       if (refreshed.ok) {
         hydrateForm(refreshed.place);
         setPlace(refreshed.place);
@@ -199,7 +200,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
 
     setError(null);
     startTransition(async () => {
-      const result = await deletePlaceAction(placeId);
+      const result = await deletePlaceAction(tripId, placeId);
       if (!result.ok) {
         setError(result.error ?? "No se pudo eliminar.");
         return;
@@ -336,7 +337,7 @@ export function PlaceDetailModal({ placeId, days, onClose }: PlaceDetailModalPro
               />
             </Field>
 
-            <PlaceDocumentsSection placeId={place.id} />
+            <PlaceDocumentsSection tripId={tripId} placeId={place.id} />
 
             <section className={cn(surfaces.inset, "p-4")}>
               <label className="flex items-center gap-2 text-sm font-medium text-slate-200">

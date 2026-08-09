@@ -17,11 +17,12 @@ import type { PlanningDay } from "@/lib/itinerary/schema";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type DaySettingsEditorProps = {
+  tripId: string;
   day: PlanningDay;
   disabled?: boolean;
 };
 
-export function DaySettingsEditor({ day, disabled = false }: DaySettingsEditorProps) {
+export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettingsEditorProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [focus, setFocus] = useState(day.focus ?? "");
@@ -45,6 +46,7 @@ export function DaySettingsEditor({ day, disabled = false }: DaySettingsEditorPr
 
     startTransition(async () => {
       const result = await updateItineraryDaySettingsAction(
+        tripId,
         day.id,
         focus.trim() || null,
         fromTimeInputValue(dayEndOverride),

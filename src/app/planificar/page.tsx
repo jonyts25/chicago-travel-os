@@ -9,17 +9,26 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function PlanificarPage() {
+export default async function PlanificarPage({
+  params,
+}: {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/planificar");
+    redirect(`/login?next=/trips/${tripId}/planificar`);
   }
 
-  const { data, error } = await loadPlanningBoardData();
+  const { data, error } = await loadPlanningBoardData(tripId);
 
   return (
     <PageContainer>
@@ -33,6 +42,7 @@ export default async function PlanificarPage() {
         <ErrorMessage message="No pudimos cargar el itinerario." technicalDetails={error} />
       ) : data ? (
         <PlanningBoard
+          tripId={tripId}
           days={data.days}
           tripSettings={data.tripSettings}
           tripAnchorDate={data.tripAnchorDate}

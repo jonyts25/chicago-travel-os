@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { typography } from "@/lib/ui/styles";
 import { getUserPreferencesAction } from "@/app/preferencias/actions";
@@ -14,21 +13,30 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function PreferenciasPage() {
+export default async function PreferenciasPage({
+  params,
+}: {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/preferencias");
+    redirect(`/login?next=/trips/${tripId}/preferencias`);
   }
 
   const preferencesResult = await getUserPreferencesAction();
   const { data: trip } = await supabase
     .from("trips")
     .select(TRIP_TRAVEL_SELECT)
-    .eq("id", CHICAGO_TRIP_ID)
+    .eq("id", tripId)
     .maybeSingle();
 
   const tripSettings = normalizeTripTravelSettings(trip);
@@ -41,7 +49,7 @@ export default async function PreferenciasPage() {
         subtitle="Datos del viaje, preferencias personales y sesión."
       />
 
-      <TripSettingsForm initialSettings={tripSettings} />
+      <TripSettingsForm tripId={tripId} initialSettings={tripSettings} />
 
       <Card className="mt-6" title="Sesión">
         <p className={typography.secondary}>

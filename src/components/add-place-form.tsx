@@ -13,10 +13,11 @@ import { formatCategory } from "@/lib/planning/format";
 import { inputs, typography } from "@/lib/ui/styles";
 
 type AddPlaceFormProps = {
+  tripId: string;
   initialMapsUrl?: string;
 };
 
-export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
+export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps) {
   const { showToast } = useToast();
   const [mapsUrl, setMapsUrl] = useState(initialMapsUrl);
   const [manualName, setManualName] = useState("");
@@ -48,7 +49,7 @@ export function AddPlaceForm({ initialMapsUrl = "" }: AddPlaceFormProps) {
     setResult(null);
 
     const formData = new FormData(event.currentTarget);
-    const summary = await addPlaceAction(formData);
+    const summary = await addPlaceAction(tripId, formData);
 
     setResult(summary);
     setStatus("done");

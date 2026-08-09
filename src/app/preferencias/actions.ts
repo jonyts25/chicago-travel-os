@@ -1,6 +1,5 @@
 "use server";
 
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { extractTravelConfirmation } from "@/lib/ai/extract-travel-confirmation";
 import type {
   ExtractedTravelConfirmation,
@@ -8,6 +7,7 @@ import type {
 } from "@/lib/trips/travel-info";
 import { assertTripMember, interpretMutationResult } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
+import { revalidateTripPaths } from "@/lib/trips/trip-paths";
 import { revalidatePath } from "next/cache";
 
 export async function getUserPreferencesAction(): Promise<
@@ -77,6 +77,7 @@ export async function updateUserPreferencesAction(
 }
 
 export async function updateTripSettingsAction(
+  tripId: string,
   settings: TripTravelSettingsUpdate,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
@@ -95,7 +96,7 @@ export async function updateTripSettingsAction(
     return { ok: false, error: "Los minutos de traslado deben ser un número válido." };
   }
 
-  const membership = await assertTripMember(supabase, user.id, CHICAGO_TRIP_ID);
+  const membership = await assertTripMember(supabase, user.id, tripId);
   if (!membership.ok) {
     return membership;
   }
@@ -113,7 +114,7 @@ export async function updateTripSettingsAction(
       base_location: settings.base_location?.trim() || null,
       airport_transfer_minutes: settings.airport_transfer_minutes,
     })
-    .eq("id", CHICAGO_TRIP_ID)
+    .eq("id", tripId)
     .select("id")
     .single();
 
@@ -128,10 +129,9 @@ export async function updateTripSettingsAction(
     return mutation;
   }
 
-  revalidatePath("/preferencias");
-  revalidatePath("/planificar");
-  revalidatePath("/dashboard");
-  revalidatePath("/hoy");
+  for (const path of revalidateTripPaths(tripId)) {
+    revalidatePath(path);
+  }
   return { ok: true };
 }
 

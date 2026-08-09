@@ -1,8 +1,5 @@
 import { applyAIEnrichment, enrichPlacesWithAI } from "@/lib/ai/enrich-places";
-import {
-  CHICAGO_TRIP_ID,
-  PLACE_STATUS_UNPLANNED,
-} from "@/lib/constants";
+import { PLACE_STATUS_UNPLANNED } from "@/lib/constants";
 import type { NominatimPlaceSearchResult } from "@/lib/geocoding/nominatim-search";
 import {
   findNearbyDuplicate,
@@ -35,6 +32,7 @@ export type AddPlaceFromSearchResult =
 
 export async function addPlaceFromSearchSelection(
   supabase: SupabaseClient,
+  tripId: string,
   selection: AddPlaceFromSearchInput,
   options: { forceDuplicate?: boolean } = {},
 ): Promise<AddPlaceFromSearchResult> {
@@ -47,7 +45,7 @@ export async function addPlaceFromSearchSelection(
     return { ok: false, error: "El lugar seleccionado no tiene coordenadas válidas." };
   }
 
-  const existingPlaces = await loadExistingPlacesWithCoordinates(supabase);
+  const existingPlaces = await loadExistingPlacesWithCoordinates(supabase, tripId);
   const duplicate = findNearbyDuplicate(
     {
       name,
@@ -88,7 +86,7 @@ export async function addPlaceFromSearchSelection(
   applyAIEnrichment(parsedPlace, enrichment);
 
   const row: PlaceInsert = {
-    trip_id: CHICAGO_TRIP_ID,
+    trip_id: tripId,
     name: parsedPlace.name,
     lat: parsedPlace.lat,
     lng: parsedPlace.lng,
@@ -121,11 +119,12 @@ export async function addPlaceFromSearchSelection(
 
 async function loadExistingPlacesWithCoordinates(
   supabase: SupabaseClient,
+  tripId: string,
 ): Promise<NearbyPlaceRecord[]> {
   const { data, error } = await supabase
     .from("places")
     .select("id, name, lat, lng")
-    .eq("trip_id", CHICAGO_TRIP_ID);
+    .eq("trip_id", tripId);
 
   if (error) {
     throw new Error(error.message);

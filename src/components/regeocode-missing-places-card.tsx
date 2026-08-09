@@ -10,8 +10,10 @@ import { typography } from "@/lib/ui/styles";
 import type { RegeocodeMissingPlacesResult } from "@/lib/places/regeocode-missing-places";
 
 export function RegeocodeMissingPlacesCard({
+  tripId,
   missingCount,
 }: {
+  tripId: string;
   missingCount: number;
 }) {
   const { showToast } = useToast();
@@ -27,7 +29,7 @@ export function RegeocodeMissingPlacesCard({
     setStatus("loading");
     setResult(null);
 
-    const summary = await regeocodeMissingPlacesAction();
+    const summary = await regeocodeMissingPlacesAction(tripId);
     setResult(summary);
     setRemainingCount(summary.failed.length);
     setStatus("done");

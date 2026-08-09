@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   normalizeTripGeocodingContext,
@@ -8,7 +7,7 @@ import {
 
 export async function loadTripGeocodingContext(
   supabase: SupabaseClient,
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<TripGeocodingContext> {
   const { data, error } = await supabase
     .from("trips")

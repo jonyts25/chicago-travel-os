@@ -6,7 +6,6 @@ import { TripInfoSummary } from "@/components/trips/trip-info-summary";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { TRIP_TRAVEL_SELECT, normalizeTripTravelSettings } from "@/lib/trips/travel-info";
 import { typography } from "@/lib/ui/styles";
 import { createClient } from "@/lib/supabase/server";
@@ -14,20 +13,29 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  params,
+}: {
+  params: Promise<{ tripId?: string }>;
+}) {
+  const { tripId } = await params;
+  if (!tripId) {
+    redirect("/");
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login?next=/dashboard");
+    redirect(`/login?next=/trips/${tripId}/dashboard`);
   }
 
   const { data: trip } = await supabase
     .from("trips")
     .select(`${TRIP_TRAVEL_SELECT}, late_checkin_confirmed`)
-    .eq("id", CHICAGO_TRIP_ID)
+    .eq("id", tripId)
     .maybeSingle();
 
   const tripSettings = normalizeTripTravelSettings(trip);
@@ -45,6 +53,7 @@ export default async function DashboardPage() {
       <TripInfoSummary settings={tripSettings} />
 
       <LateCheckinToggle
+        tripId={tripId}
         initialConfirmed={lateCheckinConfirmed}
         hotelCheckin={tripSettings.hotel_checkin}
       />

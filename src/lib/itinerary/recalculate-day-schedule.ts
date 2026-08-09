@@ -18,6 +18,7 @@ type ScheduleItemRow = {
 
 export async function recalculateDaySchedule(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   itineraryDayId: string,
 ): Promise<{ ok: boolean; error?: string; warnings: string[] }> {
   const { data: rows, error: fetchError } = await supabase
@@ -45,8 +46,8 @@ export async function recalculateDaySchedule(
   });
 
   const { schedules, warnings } = calculateDaySchedule(items, {
-    dayStartMinutes: await loadDayStartMinutes(supabase, itineraryDayId),
-    dayEndWarningMinutes: await loadDayEndWarningMinutes(supabase, itineraryDayId),
+    dayStartMinutes: await loadDayStartMinutes(supabase, tripId, itineraryDayId),
+    dayEndWarningMinutes: await loadDayEndWarningMinutes(supabase, tripId, itineraryDayId),
   });
   const durationById = new Map(items.map((item) => [item.id, item.durationMinutes]));
 
@@ -80,14 +81,16 @@ export async function recalculateDaySchedule(
 }
 
 export async function recalculateDayScheduleById(
+  tripId: string,
   itineraryDayId: string,
 ): Promise<{ ok: boolean; error?: string; warnings: string[] }> {
   const supabase = await createClient();
-  return recalculateDaySchedule(supabase, itineraryDayId);
+  return recalculateDaySchedule(supabase, tripId, itineraryDayId);
 }
 
 export async function recalculateDayScheduleForPlace(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  tripId: string,
   placeId: string,
 ): Promise<{ ok: boolean; error?: string; warnings: string[] }> {
   const { data: item, error } = await supabase
@@ -106,5 +109,5 @@ export async function recalculateDayScheduleForPlace(
     return { ok: true, warnings: [] };
   }
 
-  return recalculateDaySchedule(supabase, item.itinerary_day_id);
+  return recalculateDaySchedule(supabase, tripId, item.itinerary_day_id);
 }

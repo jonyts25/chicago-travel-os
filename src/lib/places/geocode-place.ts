@@ -1,4 +1,3 @@
-import { CHICAGO_TRIP_ID } from "@/lib/constants";
 import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import { geocodePlaceWithRetries } from "@/lib/geocoding/nominatim";
 import type { TripGeocodingContext } from "@/lib/geocoding/trip-geocoding-context";
@@ -13,7 +12,7 @@ export async function geocodePlaceRecord(
   supabase: SupabaseClient,
   place: { id: string; name: string },
   geocodingContext: TripGeocodingContext,
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<GeocodePlaceRecordResult> {
   const geocoded = await geocodePlaceWithRetries(place.name, geocodingContext);
 
@@ -49,7 +48,7 @@ export async function geocodePlaceRecord(
 export async function geocodePlaceById(
   supabase: SupabaseClient,
   placeId: string,
-  tripId: string = CHICAGO_TRIP_ID,
+  tripId: string,
 ): Promise<GeocodePlaceRecordResult> {
   const { data: place, error: fetchError } = await supabase
     .from("places")
