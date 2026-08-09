@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  assignPlaceToDayAction,
   generateItineraryAction,
   moveItineraryItemAction,
   regenerateDayItineraryAction,
@@ -11,7 +11,6 @@ import {
   clearDayAction,
 } from "@/app/planificar/actions";
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
-import { PlaceSuggestionsPanel } from "@/components/planificar/place-suggestions-panel";
 import { DaySettingsEditor } from "@/components/planificar/day-settings-editor";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,14 +32,15 @@ import {
 } from "@/lib/trips/travel-info";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
-import { buttons, cn, inputs, surfaces, typography } from "@/lib/ui/styles";
+import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
-type PlanningBoardProps = PlanningBoardData;
+type PlanningBoardProps = Pick<
+  PlanningBoardData,
+  "days" | "tripSettings" | "tripAnchorDate" | "tripAnchorSource"
+>;
 
 export function PlanningBoard({
   days,
-  unplannedPlaces,
-  unlocatedPlaces,
   tripSettings,
   tripAnchorDate,
   tripAnchorSource,
@@ -49,29 +49,11 @@ export function PlanningBoard({
   const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [activeDayNumber, setActiveDayNumber] = useState(days[0]?.day_number ?? 1);
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [actionError, setActionError] = useState<string | null>(null);
   const [optimizerSummary, setOptimizerSummary] = useState<OptimizerSummary | null>(
     null,
   );
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
-
-  const categories = useMemo(() => {
-    const values = new Set<string>();
-    for (const place of unplannedPlaces) {
-      if (place.category) {
-        values.add(place.category);
-      }
-    }
-    return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
-  }, [unplannedPlaces]);
-
-  const filteredUnplanned = useMemo(() => {
-    if (categoryFilter === "all") {
-      return unplannedPlaces;
-    }
-    return unplannedPlaces.filter((place) => place.category === categoryFilter);
-  }, [categoryFilter, unplannedPlaces]);
 
   const activeDay = days.find((day) => day.day_number === activeDayNumber) ?? days[0];
 
@@ -126,6 +108,14 @@ export function PlanningBoard({
         />
       ) : null}
 
+      <div className="flex justify-end">
+        <Link href="/planificar/lugares">
+          <Button type="button" variant="secondary">
+            Agregar lugares
+          </Button>
+        </Link>
+      </div>
+
       <Card
         title="Optimizador"
         subtitle="Distribuye lugares sin planear respetando enfoque por día, hora límite (manual, vuelo o 22:00) y ~20 min de traslado entre paradas."
@@ -144,87 +134,6 @@ export function PlanningBoard({
         {optimizerSummary ? (
           <OptimizerSummaryPanel summary={optimizerSummary} />
         ) : null}
-      </Card>
-
-      <PlaceSuggestionsPanel />
-
-      {unlocatedPlaces.length > 0 ? (
-        <Card
-          tone="warning"
-          title={`No se pudieron ubicar (${unlocatedPlaces.length})`}
-          subtitle="Lugares sin coordenadas — quedan fuera del optimizador. Agrégalos manualmente o corrige sus coordenadas."
-        >
-          <ul className="mt-4 flex flex-col gap-2">
-            {unlocatedPlaces.map((place) => (
-              <li
-                key={place.id}
-                className={cn(surfaces.inset, "px-3 py-2.5")}
-              >
-                <PlaceOpenButton
-                  name={place.name}
-                  onOpen={() => setSelectedPlaceId(place.id)}
-                />
-                <span className={typography.placeMeta}>
-                  {" "}
-                  · {formatCategory(place.category)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
-
-      <Card
-        title="Sin planear"
-        subtitle={`${unplannedPlaces.length} lugar(es) con coordenadas disponibles`}
-      >
-        <div className="mt-4 flex justify-end">
-          <label className={cn(inputs.label, "sm:max-w-xs")}>
-            Categoría
-            <select
-              value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value)}
-              className={inputs.base}
-            >
-              <option value="all">Todas</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {filteredUnplanned.length === 0 ? (
-          <EmptyState
-            className="mt-4"
-            title="Sin lugares sin planear"
-            description={
-              categoryFilter !== "all"
-                ? "No hay lugares sin planear en esta categoría. Prueba otra categoría o importa más lugares."
-                : "Todos los lugares con coordenadas ya están asignados a un día."
-            }
-          />
-        ) : (
-          <ul className="mt-4 flex flex-col gap-3">
-            {filteredUnplanned.map((place) => (
-              <UnplannedPlaceCard
-                key={place.id}
-                place={place}
-                days={days}
-                disabled={isPending}
-                onOpen={() => setSelectedPlaceId(place.id)}
-                onAssign={(dayId) =>
-                  runAction(
-                    () => assignPlaceToDayAction(place.id, dayId),
-                    "Lugar agregado al día.",
-                  )
-                }
-              />
-            ))}
-          </ul>
-        )}
       </Card>
 
       <Card title="Itinerario por día">
@@ -418,57 +327,6 @@ function PlaceOpenButton({
     >
       {name}
     </button>
-  );
-}
-
-function UnplannedPlaceCard({
-  place,
-  days,
-  disabled,
-  onOpen,
-  onAssign,
-}: {
-  place: PlanningBoardData["unplannedPlaces"][number];
-  days: PlanningDay[];
-  disabled: boolean;
-  onOpen: () => void;
-  onAssign: (dayId: string) => void;
-}) {
-  const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
-
-  return (
-    <li className={cn(surfaces.inset, "p-4")}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <PlaceOpenButton name={place.name} onOpen={onOpen} />
-          <p className={cn(typography.placeMeta, "mt-1")}>
-            {formatCategory(place.category)} · {formatDurationMinutes(place.duration_minutes)}
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:min-w-[220px]">
-          <select
-            value={selectedDayId}
-            onChange={(event) => setSelectedDayId(event.target.value)}
-            disabled={disabled || days.length === 0}
-            className={inputs.base}
-          >
-            {days.map((day) => (
-              <option key={day.id} value={day.id}>
-                Día {day.day_number}
-              </option>
-            ))}
-          </select>
-          <Button
-            type="button"
-            disabled={disabled || !selectedDayId}
-            onClick={() => onAssign(selectedDayId)}
-          >
-            Agregar al día
-          </Button>
-        </div>
-      </div>
-    </li>
   );
 }
 
