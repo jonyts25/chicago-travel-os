@@ -43,7 +43,14 @@ export default async function DashboardPage() {
           <Link href="/map" className="font-medium text-blue-400 hover:text-blue-300">
             /map
           </Link>{" "}
-          para ver el mapa (Leaflet + OpenStreetMap).
+          para ver el mapa ·{" "}
+          <Link
+            href="/planificar"
+            className="font-medium text-blue-400 hover:text-blue-300"
+          >
+            /planificar
+          </Link>{" "}
+          para armar el itinerario día a día.
         </p>
       </section>
     </div>

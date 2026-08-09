@@ -41,7 +41,8 @@ export async function updateSession(request: NextRequest) {
   const isProtectedRoute =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/import") ||
-    pathname.startsWith("/map");
+    pathname.startsWith("/map") ||
+    pathname.startsWith("/planificar");
 
   if (!user && isProtectedRoute) {
     const redirectUrl = request.nextUrl.clone();
