@@ -42,6 +42,16 @@ export type ImportPlacesResult = {
   errors: string[];
 };
 
+export type AddPlaceResult = {
+  ok: boolean;
+  action: "created" | "updated" | "none";
+  name: string;
+  category: string | null;
+  hasCoordinates: boolean;
+  needsManualName: boolean;
+  errors: string[];
+};
+
 export type AIPlaceEnrichment = {
   originalName: string;
   cleanName: string;

@@ -9,10 +9,15 @@ import {
 } from "@/lib/geocoding/nominatim";
 import {
   parseGoogleMapsExport,
+  parsePlaceFromMapsUrl,
   partitionPlacesForImport,
   type PlaceToUpdate,
 } from "@/lib/importers/google-maps";
-import type { ImportPlacesResult, ParsedGooglePlace } from "@/lib/importers/types";
+import type {
+  AddPlaceResult,
+  ImportPlacesResult,
+  ParsedGooglePlace,
+} from "@/lib/importers/types";
 import type { PlaceInsert } from "@/lib/places/schema";
 import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -111,6 +116,133 @@ export async function importGoogleMapsPlaces(
   };
 }
 
+export async function addPlaceFromMapsUrl(
+  mapsUrl: string,
+  manualName?: string,
+): Promise<AddPlaceResult> {
+  const emptyResult = (): AddPlaceResult => ({
+    ok: false,
+    action: "none",
+    name: "",
+    category: null,
+    hasCoordinates: false,
+    needsManualName: false,
+    errors: [],
+  });
+
+  const parsed = parsePlaceFromMapsUrl(mapsUrl, manualName);
+  if (!parsed.ok) {
+    return {
+      ...emptyResult(),
+      needsManualName: parsed.needsManualName ?? false,
+      errors: [parsed.error],
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ...emptyResult(),
+      errors: ["Debes iniciar sesión para agregar lugares."],
+    };
+  }
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("places")
+    .select("id, google_place_id, lat, lng, address, category")
+    .eq("trip_id", CHICAGO_TRIP_ID)
+    .eq("google_place_id", parsed.place.google_place_id)
+    .maybeSingle();
+
+  if (fetchError) {
+    return {
+      ...emptyResult(),
+      errors: [fetchError.message],
+    };
+  }
+
+  const existingRow = existing as ExistingPlaceRow | null;
+  const existingById = existingRow
+    ? new Map<string, ExistingPlaceRow>([[existingRow.id, existingRow]])
+    : new Map<string, ExistingPlaceRow>();
+
+  const inputPlaces: (ParsedGooglePlace | PlaceToUpdate)[] = existingRow
+    ? [{ ...parsed.place, existingId: existingRow.id }]
+    : [parsed.place];
+
+  const processed = await processParsedPlaces(inputPlaces, existingById);
+  const saved = processed.places[0];
+  const errors = [...processed.errors];
+
+  if (!saved) {
+    return {
+      ...emptyResult(),
+      errors: ["No se pudo procesar el lugar.", ...errors],
+    };
+  }
+
+  if (existingRow) {
+    const existingId = saved.existingId;
+    if (!existingId) {
+      return {
+        ...emptyResult(),
+        name: saved.name,
+        errors: ["Error interno al actualizar el lugar."],
+      };
+    }
+
+    const { error } = await supabase
+      .from("places")
+      .update(buildPlaceUpdatePayload(saved))
+      .eq("id", existingId)
+      .eq("trip_id", CHICAGO_TRIP_ID);
+
+    if (error) {
+      return {
+        ...emptyResult(),
+        name: saved.name,
+        errors: [error.message, ...errors],
+      };
+    }
+
+    return {
+      ok: true,
+      action: "updated",
+      name: saved.name,
+      category: saved.category,
+      hasCoordinates: hasCoordinates(saved),
+      needsManualName: false,
+      errors,
+    };
+  }
+
+  const { error: insertError } = await supabase
+    .from("places")
+    .insert(buildPlaceInsertRow(saved));
+
+  if (insertError) {
+    return {
+      ...emptyResult(),
+      name: saved.name,
+      errors: [insertError.message, ...errors],
+    };
+  }
+
+  return {
+    ok: true,
+    action: "created",
+    name: saved.name,
+    category: saved.category,
+    hasCoordinates: hasCoordinates(saved),
+    needsManualName: false,
+    errors,
+  };
+}
+
 export async function runImportPipelineDryRun(
   fileContent: string,
   filename?: string,
@@ -177,19 +309,9 @@ async function processAndInsertPlaces(
     return processed;
   }
 
-  const rowsToInsert: PlaceInsert[] = processed.places.map((place) => ({
-    trip_id: CHICAGO_TRIP_ID,
-    name: place.name,
-    lat: place.lat,
-    lng: place.lng,
-    address: place.address,
-    google_place_id: place.google_place_id,
-    maps_url: place.maps_url,
-    notes: place.notes,
-    category: place.category,
-    duration_minutes: place.duration_minutes,
-    status: PLACE_STATUS_UNPLANNED,
-  }));
+  const rowsToInsert: PlaceInsert[] = processed.places.map((place) =>
+    buildPlaceInsertRow(place),
+  );
 
   const { error: insertError } = await supabase.from("places").insert(rowsToInsert);
 
@@ -223,22 +345,7 @@ async function processAndUpdatePlaces(
       continue;
     }
 
-    const payload: Record<string, unknown> = {
-      name: place.name,
-      maps_url: place.maps_url,
-      notes: place.notes,
-    };
-
-    if (place.category) {
-      payload.category = place.category;
-      payload.duration_minutes = place.duration_minutes;
-    }
-
-    if (hasCoordinates(place)) {
-      payload.lat = place.lat;
-      payload.lng = place.lng;
-      payload.address = place.address;
-    }
+    const payload = buildPlaceUpdatePayload(place);
 
     const { error } = await supabase
       .from("places")
@@ -335,6 +442,43 @@ async function processParsedPlaces(
     withoutAiCategory,
     errors: aiErrors,
   };
+}
+
+function buildPlaceInsertRow(place: ProcessedPlace): PlaceInsert {
+  return {
+    trip_id: CHICAGO_TRIP_ID,
+    name: place.name,
+    lat: place.lat,
+    lng: place.lng,
+    address: place.address,
+    google_place_id: place.google_place_id,
+    maps_url: place.maps_url,
+    notes: place.notes,
+    category: place.category,
+    duration_minutes: place.duration_minutes,
+    status: PLACE_STATUS_UNPLANNED,
+  };
+}
+
+function buildPlaceUpdatePayload(place: ProcessedPlace): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: place.name,
+    maps_url: place.maps_url,
+    notes: place.notes,
+  };
+
+  if (place.category) {
+    payload.category = place.category;
+    payload.duration_minutes = place.duration_minutes;
+  }
+
+  if (hasCoordinates(place)) {
+    payload.lat = place.lat;
+    payload.lng = place.lng;
+    payload.address = place.address;
+  }
+
+  return payload;
 }
 
 function emptyProcessResult(): ProcessBatchResult {

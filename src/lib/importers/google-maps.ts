@@ -112,6 +112,142 @@ export function extractGoogleFeatureIdFromMapsUrl(
   return match?.[1] ?? null;
 }
 
+/**
+ * Tries to read the place name from a Google Maps share URL path segment.
+ * Example: /maps/place/Art+Institute+of+Chicago/...
+ */
+export function extractPlaceNameFromMapsUrl(
+  url: string | null | undefined,
+): string | null {
+  if (!url?.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url.trim());
+    const placeMatch = parsed.pathname.match(/\/maps\/place\/([^/]+)/);
+    if (placeMatch?.[1]) {
+      return decodeGoogleMapsPlaceSegment(placeMatch[1]);
+    }
+
+    const searchMatch = parsed.pathname.match(/\/maps\/search\/([^/]+)/);
+    if (searchMatch?.[1]) {
+      return decodeGoogleMapsPlaceSegment(searchMatch[1]);
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export type ParseMapsUrlResult =
+  | {
+      ok: true;
+      place: ParsedPlaceWithId;
+      extractedName: string | null;
+    }
+  | {
+      ok: false;
+      error: string;
+      needsManualName?: boolean;
+    };
+
+export function parsePlaceFromMapsUrl(
+  mapsUrl: string,
+  manualName?: string,
+): ParseMapsUrlResult {
+  const trimmedUrl = mapsUrl.trim();
+  if (!trimmedUrl) {
+    return { ok: false, error: "Pega un enlace de Google Maps." };
+  }
+
+  const googlePlaceId = extractGoogleFeatureIdFromMapsUrl(trimmedUrl);
+  if (!googlePlaceId) {
+    return {
+      ok: false,
+      error:
+        "No se encontró el identificador !1s (CID) en la URL. Usa el enlace completo de Google Maps.",
+    };
+  }
+
+  const extractedName = extractPlaceNameFromMapsUrl(trimmedUrl);
+  const resolvedName = manualName?.trim() || extractedName;
+
+  if (!resolvedName) {
+    return {
+      ok: false,
+      error: "Escribe el nombre del lugar — no se pudo detectar en el enlace.",
+      needsManualName: true,
+    };
+  }
+
+  return {
+    ok: true,
+    extractedName,
+    place: {
+      name: resolvedName,
+      lat: null,
+      lng: null,
+      address: null,
+      google_place_id: googlePlaceId,
+      maps_url: trimmedUrl,
+      notes: null,
+      category: null,
+      duration_minutes: null,
+    },
+  };
+}
+
+export function resolveMapsUrlFromShareParams(params: {
+  url?: string;
+  text?: string;
+  title?: string;
+}): string {
+  const candidates = [params.url, params.text, params.title].filter(
+    (value): value is string => Boolean(value?.trim()),
+  );
+
+  for (const candidate of candidates) {
+    const resolved = extractFirstGoogleMapsUrl(candidate);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return "";
+}
+
+function extractFirstGoogleMapsUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (isGoogleMapsUrl(trimmed)) {
+    return trimmed;
+  }
+
+  const match = trimmed.match(
+    /https?:\/\/(?:www\.)?(?:google\.[a-z.]+\/maps|maps\.app\.goo\.gl)[^\s"'<>]*/i,
+  );
+  return match?.[0] ?? null;
+}
+
+function isGoogleMapsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "maps.app.goo.gl") {
+      return true;
+    }
+
+    return parsed.hostname.includes("google.") && parsed.pathname.includes("/maps");
+  } catch {
+    return false;
+  }
+}
+
+function decodeGoogleMapsPlaceSegment(segment: string): string | null {
+  const decoded = decodeURIComponent(segment.replace(/\+/g, " ")).trim();
+  return decoded.length > 0 ? decoded : null;
+}
+
 function detectFormat(content: string, filename?: string): "json" | "csv" {
   const lowerName = filename?.toLowerCase() ?? "";
   if (lowerName.endsWith(".csv")) {
