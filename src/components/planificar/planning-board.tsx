@@ -10,6 +10,7 @@ import {
   removePlaceFromDayAction,
 } from "@/app/planificar/actions";
 import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
+import { PlaceSuggestionsPanel } from "@/components/planificar/place-suggestions-panel";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import { formatScheduleTime } from "@/lib/itinerary/schedule-day";
@@ -114,6 +115,8 @@ export function PlanningBoard({
           <OptimizerSummaryPanel summary={optimizerSummary} />
         ) : null}
       </section>
+
+      <PlaceSuggestionsPanel />
 
       {unlocatedPlaces.length > 0 ? (
         <section className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-5">

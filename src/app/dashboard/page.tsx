@@ -61,9 +61,29 @@ export default async function DashboardPage() {
           <Link href="/hoy" className="font-medium text-emerald-400 hover:text-emerald-300">
             /hoy
           </Link>{" "}
-          para el modo viaje activo en el celular.
+          para el modo viaje activo en el celular ·{" "}
+          <Link
+            href="/preferencias"
+            className="font-medium text-violet-400 hover:text-violet-300"
+          >
+            /preferencias
+          </Link>{" "}
+          para tus gustos del viaje (sugerencias IA).
         </p>
       </section>
+
+      <Link
+        href="/preferencias"
+        className="block rounded-2xl border border-violet-500/40 bg-violet-950/30 p-6 transition hover:border-violet-400/60 hover:bg-violet-950/50"
+      >
+        <p className="text-sm font-medium uppercase tracking-[0.15em] text-violet-400">
+          Gustos del viaje
+        </p>
+        <h2 className="mt-2 text-xl font-semibold text-white">Editar preferencias</h2>
+        <p className="mt-2 text-sm text-violet-100/80">
+          Texto libre por usuario — la IA lo usa para sugerir lugares en /planificar.
+        </p>
+      </Link>
 
       <Link
         href="/hoy"

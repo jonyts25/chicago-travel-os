@@ -243,6 +243,127 @@ export async function addPlaceFromMapsUrl(
   };
 }
 
+export type AddPlacesFromNamesResult = {
+  ok: boolean;
+  added: string[];
+  skippedDuplicate: string[];
+  failedGeocode: string[];
+  errors: string[];
+};
+
+export async function addPlacesFromNames(
+  places: { name: string; notes?: string | null }[],
+): Promise<AddPlacesFromNamesResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      added: [],
+      skippedDuplicate: [],
+      failedGeocode: [],
+      errors: ["Debes iniciar sesión para agregar lugares."],
+    };
+  }
+
+  const trimmedPlaces = places
+    .map((place) => ({
+      name: place.name.trim(),
+      notes: place.notes?.trim() || null,
+    }))
+    .filter((place) => place.name.length > 0);
+
+  if (trimmedPlaces.length === 0) {
+    return {
+      ok: false,
+      added: [],
+      skippedDuplicate: [],
+      failedGeocode: [],
+      errors: ["No hay lugares seleccionados."],
+    };
+  }
+
+  const { data: existingRows, error: fetchError } = await supabase
+    .from("places")
+    .select("name")
+    .eq("trip_id", CHICAGO_TRIP_ID);
+
+  if (fetchError) {
+    return {
+      ok: false,
+      added: [],
+      skippedDuplicate: [],
+      failedGeocode: [],
+      errors: [fetchError.message],
+    };
+  }
+
+  const existingNames = new Set(
+    (existingRows ?? []).map((row) => normalizePlaceName(row.name)),
+  );
+
+  const added: string[] = [];
+  const skippedDuplicate: string[] = [];
+  const failedGeocode: string[] = [];
+  const errors: string[] = [];
+
+  for (const place of trimmedPlaces) {
+    const normalized = normalizePlaceName(place.name);
+    if (existingNames.has(normalized)) {
+      skippedDuplicate.push(place.name);
+      continue;
+    }
+
+    const parsed: ParsedGooglePlace = {
+      name: place.name,
+      lat: null,
+      lng: null,
+      address: null,
+      google_place_id: null,
+      maps_url: null,
+      notes: place.notes,
+      category: null,
+      duration_minutes: null,
+    };
+
+    const processed = await processParsedPlaces([parsed]);
+    errors.push(...processed.errors);
+
+    const saved = processed.places[0];
+    if (!saved || !hasCoordinates(saved)) {
+      failedGeocode.push(place.name);
+      continue;
+    }
+
+    const { error: insertError } = await supabase
+      .from("places")
+      .insert(buildPlaceInsertRow(saved));
+
+    if (insertError) {
+      errors.push(`No se pudo agregar "${place.name}": ${insertError.message}`);
+      continue;
+    }
+
+    added.push(saved.name);
+    existingNames.add(normalizePlaceName(saved.name));
+  }
+
+  return {
+    ok: added.length > 0,
+    added,
+    skippedDuplicate,
+    failedGeocode,
+    errors,
+  };
+}
+
+function normalizePlaceName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 export async function runImportPipelineDryRun(
   fileContent: string,
   filename?: string,
