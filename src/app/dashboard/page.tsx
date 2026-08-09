@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { LateCheckinToggle } from "@/components/dashboard/late-checkin-toggle";
+import { PushNotificationsPanel } from "@/components/dashboard/push-notifications-panel";
 import { SignOutButton } from "@/components/sign-out-button";
 import { TripInfoSummary } from "@/components/trips/trip-info-summary";
 import { Card } from "@/components/ui/card";
@@ -24,11 +26,13 @@ export default async function DashboardPage() {
 
   const { data: trip } = await supabase
     .from("trips")
-    .select(TRIP_TRAVEL_SELECT)
+    .select(`${TRIP_TRAVEL_SELECT}, late_checkin_confirmed`)
     .eq("id", CHICAGO_TRIP_ID)
     .maybeSingle();
 
   const tripSettings = normalizeTripTravelSettings(trip);
+  const lateCheckinConfirmed = Boolean(trip?.late_checkin_confirmed);
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null;
 
   return (
     <PageContainer>
@@ -39,6 +43,13 @@ export default async function DashboardPage() {
       />
 
       <TripInfoSummary settings={tripSettings} />
+
+      <LateCheckinToggle
+        initialConfirmed={lateCheckinConfirmed}
+        hotelCheckin={tripSettings.hotel_checkin}
+      />
+
+      <PushNotificationsPanel vapidPublicKey={vapidPublicKey} />
 
       <Card className="mt-6" title="Sesión activa">
         <p className={typography.secondary}>

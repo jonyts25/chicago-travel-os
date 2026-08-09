@@ -7,6 +7,7 @@ const withPWA = withPWAInit({
   register: true,
   workboxOptions: {
     disableDevLogs: true,
+    importScripts: ["/push-handler.js"],
   },
 });
 

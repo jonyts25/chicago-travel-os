@@ -9,6 +9,7 @@ export type Trip = {
   hotel_checkin: string | null;
   hotel_checkout: string | null;
   airport_transfer_minutes: number | null;
+  late_checkin_confirmed: boolean | null;
 };
 
 export type TripDayOption = {
