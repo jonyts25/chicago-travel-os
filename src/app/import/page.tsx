@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { ImportPlacesForm } from "@/components/import-places-form";
+import { RegeocodeMissingPlacesCard } from "@/components/regeocode-missing-places-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageContainer } from "@/components/ui/page-container";
 import { PageHeader } from "@/components/ui/page-header";
+import { CHICAGO_TRIP_ID } from "@/lib/constants";
+import { countMissingCoordinatesPlaces } from "@/lib/places/regeocode-missing-places";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -19,6 +22,8 @@ export default async function ImportPage() {
     redirect("/login?next=/import");
   }
 
+  const missingCount = await countMissingCoordinatesPlaces(supabase, CHICAGO_TRIP_ID);
+
   return (
     <PageContainer>
       <PageHeader
@@ -33,6 +38,8 @@ export default async function ImportPage() {
       >
         <ImportPlacesForm />
       </Card>
+
+      <RegeocodeMissingPlacesCard missingCount={missingCount} />
 
       <Card
         className="mt-6"
