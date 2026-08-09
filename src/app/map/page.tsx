@@ -2,7 +2,7 @@ import Link from "next/link";
 import { TripMapLoader } from "@/components/map/trip-map-loader";
 import { SignOutButton } from "@/components/sign-out-button";
 import { CHICAGO_TRIP_ID } from "@/lib/constants";
-import type { MapPlace } from "@/lib/places/types";
+import { hasCoordinates, type PlaceMapMarker } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -20,29 +20,32 @@ export default async function MapPage() {
 
   const { data: rows, error } = await supabase
     .from("places")
-    .select("id, name, latitude, longitude, category, status, address")
+    .select("id, name, lat, lng, category, status, address")
     .eq("trip_id", CHICAGO_TRIP_ID)
-    .not("latitude", "is", null)
-    .not("longitude", "is", null);
+    .not("lat", "is", null)
+    .not("lng", "is", null);
 
   if (error) {
     throw new Error(`Error al cargar lugares: ${error.message}`);
   }
 
-  const places: MapPlace[] = (rows ?? [])
-    .filter(
-      (row): row is MapPlace =>
-        typeof row.latitude === "number" && typeof row.longitude === "number",
-    )
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      latitude: row.latitude,
-      longitude: row.longitude,
-      category: row.category,
-      status: row.status,
-      address: row.address,
-    }));
+  const places: PlaceMapMarker[] = (rows ?? []).flatMap((row) => {
+    if (!hasCoordinates(row)) {
+      return [];
+    }
+
+    return [
+      {
+        id: row.id,
+        name: row.name,
+        lat: row.lat,
+        lng: row.lng,
+        category: row.category,
+        status: row.status,
+        address: row.address,
+      },
+    ];
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-8">

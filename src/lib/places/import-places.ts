@@ -9,9 +9,11 @@ import {
   partitionPlacesByDuplicates,
 } from "@/lib/importers/google-maps";
 import type { ImportPlacesResult, ParsedGooglePlace } from "@/lib/importers/types";
+import type { PlaceInsert } from "@/lib/places/schema";
+import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
 
-type PlaceRow = {
+type ExistingPlaceRow = {
   id: string;
   google_place_id: string | null;
 };
@@ -28,26 +30,12 @@ export async function importGoogleMapsPlaces(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return {
-      imported: 0,
-      duplicates: 0,
-      withoutCoordinates: 0,
-      withoutAiCategory: 0,
-      skippedNoId: 0,
-      errors: ["Debes iniciar sesión para importar lugares."],
-    };
+    return emptyResult(["Debes iniciar sesión para importar lugares."]);
   }
 
   const parsed = parseGoogleMapsExport(fileContent, filename);
   if (parsed.length === 0) {
-    return {
-      imported: 0,
-      duplicates: 0,
-      withoutCoordinates: 0,
-      withoutAiCategory: 0,
-      skippedNoId: 0,
-      errors: ["No se encontraron lugares válidos en el archivo."],
-    };
+    return emptyResult(["No se encontraron lugares válidos en el archivo."]);
   }
 
   const withoutFeatureId = parsed.filter((place) => !place.google_place_id);
@@ -63,18 +51,14 @@ export async function importGoogleMapsPlaces(
 
   if (fetchError) {
     return {
-      imported: 0,
-      duplicates: 0,
-      withoutCoordinates: 0,
-      withoutAiCategory: 0,
+      ...emptyResult([`Error al leer lugares existentes: ${fetchError.message}`]),
       skippedNoId: withoutFeatureId.length,
-      errors: [`Error al leer lugares existentes: ${fetchError.message}`],
     };
   }
 
   const { toInsert, duplicates } = partitionPlacesByDuplicates(
     withFeatureId,
-    (existingRows ?? []) as PlaceRow[],
+    (existingRows ?? []) as ExistingPlaceRow[],
   );
 
   if (toInsert.length === 0) {
@@ -88,27 +72,8 @@ export async function importGoogleMapsPlaces(
     };
   }
 
-  const geocodedPlaces: ParsedGooglePlace[] = [];
-  let withoutCoordinates = 0;
-
-  for (const place of toInsert) {
-    const geocoded = await geocodePlaceInChicago(place.name);
-    const hasCoordinates =
-      geocoded.latitude != null && geocoded.longitude != null;
-
-    if (!hasCoordinates) {
-      withoutCoordinates += 1;
-    }
-
-    geocodedPlaces.push({
-      ...place,
-      latitude: geocoded.latitude,
-      longitude: geocoded.longitude,
-      address: geocoded.address ?? place.address,
-    });
-
-    await delay(NOMINATIM_DELAY_MS);
-  }
+  const { places: geocodedPlaces, withoutCoordinates } =
+    await geocodeParsedPlaces(toInsert);
 
   let withoutAiCategory = 0;
   const aiEnrichment = await enrichPlacesWithAI(
@@ -123,11 +88,11 @@ export async function importGoogleMapsPlaces(
     }
   }
 
-  const rowsToInsert = geocodedPlaces.map((place) => ({
+  const rowsToInsert: PlaceInsert[] = geocodedPlaces.map((place) => ({
     trip_id: CHICAGO_TRIP_ID,
     name: place.name,
-    latitude: place.latitude,
-    longitude: place.longitude,
+    lat: place.lat,
+    lng: place.lng,
     address: place.address,
     google_place_id: place.google_place_id,
     maps_url: place.maps_url,
@@ -167,15 +132,6 @@ export async function importGoogleMapsPlaces(
   };
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-/**
- * Pipeline sin autenticación ni Supabase — útil para probar CSV + geocoding + IA.
- */
 export async function runImportPipelineDryRun(
   fileContent: string,
   filename?: string,
@@ -209,27 +165,8 @@ export async function runImportPipelineDryRun(
     };
   }
 
-  const geocodedPlaces: ParsedGooglePlace[] = [];
-  let withoutCoordinates = 0;
-
-  for (const place of toInsert) {
-    const geocoded = await geocodePlaceInChicago(place.name);
-    const hasCoordinates =
-      geocoded.latitude != null && geocoded.longitude != null;
-
-    if (!hasCoordinates) {
-      withoutCoordinates += 1;
-    }
-
-    geocodedPlaces.push({
-      ...place,
-      latitude: geocoded.latitude,
-      longitude: geocoded.longitude,
-      address: geocoded.address ?? place.address,
-    });
-
-    await delay(NOMINATIM_DELAY_MS);
-  }
+  const { places: geocodedPlaces, withoutCoordinates } =
+    await geocodeParsedPlaces(toInsert);
 
   let withoutAiCategory = 0;
   const aiEnrichment = await enrichPlacesWithAI(
@@ -252,4 +189,48 @@ export async function runImportPipelineDryRun(
     skippedNoId: withoutFeatureId.length,
     errors: [],
   };
+}
+
+async function geocodeParsedPlaces(places: ParsedGooglePlace[]): Promise<{
+  places: ParsedGooglePlace[];
+  withoutCoordinates: number;
+}> {
+  const geocodedPlaces: ParsedGooglePlace[] = [];
+  let withoutCoordinates = 0;
+
+  for (const place of places) {
+    const geocoded = await geocodePlaceInChicago(place.name);
+
+    if (!hasCoordinates(geocoded)) {
+      withoutCoordinates += 1;
+    }
+
+    geocodedPlaces.push({
+      ...place,
+      lat: geocoded.lat,
+      lng: geocoded.lng,
+      address: geocoded.address ?? place.address,
+    });
+
+    await delay(NOMINATIM_DELAY_MS);
+  }
+
+  return { places: geocodedPlaces, withoutCoordinates };
+}
+
+function emptyResult(errors: string[]): ImportPlacesResult {
+  return {
+    imported: 0,
+    duplicates: 0,
+    withoutCoordinates: 0,
+    withoutAiCategory: 0,
+    skippedNoId: 0,
+    errors,
+  };
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }

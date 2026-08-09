@@ -1,3 +1,9 @@
+export type GeocodeResult = {
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
+};
+
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org/search";
 const NOMINATIM_DELAY_MS = 1000;
 
@@ -5,12 +11,6 @@ type NominatimResult = {
   lat?: string;
   lon?: string;
   display_name?: string;
-};
-
-export type GeocodeResult = {
-  latitude: number | null;
-  longitude: number | null;
-  address: string | null;
 };
 
 export function getNominatimUserAgent(): string {
@@ -39,30 +39,30 @@ export async function geocodePlaceInChicago(
     });
 
     if (!response.ok) {
-      return { latitude: null, longitude: null, address: null };
+      return { lat: null, lng: null, address: null };
     }
 
     const results = (await response.json()) as NominatimResult[];
     const first = results[0];
 
     if (!first?.lat || !first.lon) {
-      return { latitude: null, longitude: null, address: null };
+      return { lat: null, lng: null, address: null };
     }
 
-    const latitude = Number(first.lat);
-    const longitude = Number(first.lon);
+    const lat = Number(first.lat);
+    const lng = Number(first.lon);
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return { latitude: null, longitude: null, address: null };
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { lat: null, lng: null, address: null };
     }
 
     return {
-      latitude,
-      longitude,
+      lat,
+      lng,
       address: first.display_name ?? null,
     };
   } catch {
-    return { latitude: null, longitude: null, address: null };
+    return { lat: null, lng: null, address: null };
   }
 }
 

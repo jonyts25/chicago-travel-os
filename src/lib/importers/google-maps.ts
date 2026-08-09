@@ -190,14 +190,14 @@ function parseGeoJsonFeature(feature: GeoJsonFeature): ParsedGooglePlace | null 
   const geometryCoords = readGeometryCoordinates(feature.geometry?.coordinates);
   const propertyCoords = readLocationCoordinates(location);
   const normalizedCoords = normalizeCoordinates(
-    geometryCoords?.latitude ?? propertyCoords?.latitude ?? null,
-    geometryCoords?.longitude ?? propertyCoords?.longitude ?? null,
+    geometryCoords?.lat ?? propertyCoords?.lat ?? null,
+    geometryCoords?.lng ?? propertyCoords?.lng ?? null,
   );
 
   return {
     name,
-    latitude: normalizedCoords?.latitude ?? null,
-    longitude: normalizedCoords?.longitude ?? null,
+    lat: normalizedCoords?.lat ?? null,
+    lng: normalizedCoords?.lng ?? null,
     address,
     google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
@@ -240,8 +240,8 @@ function parseCsvRow(headers: string[], values: string[]): ParsedGooglePlace | n
 
   return {
     name,
-    latitude: null,
-    longitude: null,
+    lat: null,
+    lng: null,
     address: null,
     google_place_id: extractGoogleFeatureIdFromMapsUrl(mapsUrl),
     maps_url: mapsUrl,
@@ -345,19 +345,19 @@ function parseCsvRows(content: string): string[][] {
 
 function readGeometryCoordinates(
   coordinates: unknown,
-): { latitude: number; longitude: number } | null {
+): { lat: number; lng: number } | null {
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     return null;
   }
 
-  const longitude = Number(coordinates[0]);
-  const latitude = Number(coordinates[1]);
-  return normalizeCoordinates(latitude, longitude);
+  const lng = Number(coordinates[0]);
+  const lat = Number(coordinates[1]);
+  return normalizeCoordinates(lat, lng);
 }
 
 function readLocationCoordinates(
   location: Record<string, unknown> | null,
-): { latitude: number; longitude: number } | null {
+): { lat: number; lng: number } | null {
   if (!location) {
     return null;
   }
@@ -366,43 +366,43 @@ function readLocationCoordinates(
     location["Geo Coordinates"] ?? location["geo coordinates"],
   );
 
-  const latitude = parseCoordinate(
+  const lat = parseCoordinate(
     geoCoordinates?.Latitude ??
       geoCoordinates?.latitude ??
       location.Latitude ??
       location.latitude,
   );
-  const longitude = parseCoordinate(
+  const lng = parseCoordinate(
     geoCoordinates?.Longitude ??
       geoCoordinates?.longitude ??
       location.Longitude ??
       location.longitude,
   );
 
-  return normalizeCoordinates(latitude, longitude);
+  return normalizeCoordinates(lat, lng);
 }
 
 function normalizeCoordinates(
-  latitude: number | null | undefined,
-  longitude: number | null | undefined,
-): { latitude: number; longitude: number } | null {
-  if (latitude == null || longitude == null) {
+  lat: number | null | undefined,
+  lng: number | null | undefined,
+): { lat: number; lng: number } | null {
+  if (lat == null || lng == null) {
     return null;
   }
 
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null;
   }
 
-  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return null;
   }
 
-  if (latitude === 0 && longitude === 0) {
+  if (lat === 0 && lng === 0) {
     return null;
   }
 
-  return { latitude, longitude };
+  return { lat, lng };
 }
 
 function parseCoordinate(value: unknown): number | null {

@@ -11,7 +11,7 @@ import {
   TileLayer,
   useMap,
 } from "react-leaflet";
-import type { MapPlace } from "@/lib/places/types";
+import type { PlaceMapMarker } from "@/lib/places/schema";
 
 const CHICAGO_CENTER: [number, number] = [41.8781, -87.6298];
 const DEFAULT_ZOOM = 12;
@@ -28,7 +28,7 @@ const placeMarkerIcon = L.divIcon({
 });
 
 type TripMapProps = {
-  places: MapPlace[];
+  places: PlaceMapMarker[];
 };
 
 export function TripMap({ places }: TripMapProps) {
@@ -43,11 +43,7 @@ export function TripMap({ places }: TripMapProps) {
       <TileLayer attribution={OSM_ATTRIBUTION} url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <FitMapToPlaces places={places} />
       {places.map((place) => (
-        <Marker
-          key={place.id}
-          position={[place.latitude, place.longitude]}
-          icon={placeMarkerIcon}
-        >
+        <Marker key={place.id} position={[place.lat, place.lng]} icon={placeMarkerIcon}>
           <Popup>
             <div className="space-y-1 text-sm text-slate-900">
               <p className="font-semibold">{place.name}</p>
@@ -68,7 +64,7 @@ export function TripMap({ places }: TripMapProps) {
   );
 }
 
-function FitMapToPlaces({ places }: { places: MapPlace[] }) {
+function FitMapToPlaces({ places }: { places: PlaceMapMarker[] }) {
   const map = useMap();
 
   useEffect(() => {
@@ -78,12 +74,12 @@ function FitMapToPlaces({ places }: { places: MapPlace[] }) {
     }
 
     if (places.length === 1) {
-      map.setView([places[0].latitude, places[0].longitude], 14);
+      map.setView([places[0].lat, places[0].lng], 14);
       return;
     }
 
     const bounds = L.latLngBounds(
-      places.map((place) => [place.latitude, place.longitude] as [number, number]),
+      places.map((place) => [place.lat, place.lng] as [number, number]),
     );
     map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
   }, [map, places]);

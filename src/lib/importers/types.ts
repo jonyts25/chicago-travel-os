@@ -15,10 +15,11 @@ export const CATEGORY_DURATION_MINUTES: Record<PlaceCategory, number> = {
   Otro: 60,
 };
 
+/** Parsed row before insert; field names align with `places` columns. */
 export type ParsedGooglePlace = {
   name: string;
-  latitude: number | null;
-  longitude: number | null;
+  lat: number | null;
+  lng: number | null;
   address: string | null;
   google_place_id: string | null;
   maps_url: string | null;

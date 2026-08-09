@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { MapPlace } from "@/lib/places/types";
+import type { PlaceMapMarker } from "@/lib/places/schema";
 
 const TripMap = dynamic(
   () => import("@/components/map/trip-map").then((mod) => mod.TripMap),
@@ -16,7 +16,7 @@ const TripMap = dynamic(
 );
 
 type TripMapLoaderProps = {
-  places: MapPlace[];
+  places: PlaceMapMarker[];
 };
 
 export function TripMapLoader({ places }: TripMapLoaderProps) {
