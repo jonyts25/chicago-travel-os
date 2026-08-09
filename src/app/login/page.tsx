@@ -3,7 +3,6 @@ import { LoginForm } from "@/components/login-form";
 type LoginPageProps = {
   searchParams: Promise<{
     next?: string;
-    error?: string;
   }>;
 };
 
@@ -20,11 +19,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
           <h1 className="text-2xl font-semibold text-white">Iniciar sesión</h1>
           <p className="text-sm text-slate-400">
-            Acceso privado con magic link por email.
+            Acceso privado con email y contraseña.
           </p>
         </div>
 
-        <LoginForm nextPath={nextPath} authError={params.error} />
+        <LoginForm nextPath={nextPath} />
       </div>
     </div>
   );

@@ -25,15 +25,11 @@ cp .env.local.example .env.local
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL` (opcional en local; útil en producción)
 
-4. En Supabase → Authentication → URL Configuration, agrega:
+4. En Supabase → Authentication → Providers, habilita **Email** (login con contraseña).
 
-- **Site URL**: `http://localhost:3000` (local) y la URL pública de Railway (producción)
-- **Redirect URLs**:
-  - `http://localhost:3000/auth/callback`
-  - `https://<tu-app>.up.railway.app/auth/callback`
-
-5. Habilita **Email** provider con magic link en Authentication → Providers.
+5. Crea los usuarios manualmente en Authentication → Users (no hay registro público en la app).
 
 6. Arranca el proyecto:
 
@@ -58,10 +54,9 @@ Abre [http://localhost:3000](http://localhost:3000). Login en `/login`, ruta pro
 | `NEXT_PUBLIC_SITE_URL` | URL pública de la app (ej. `https://tu-app.up.railway.app`) |
 
 4. Genera un dominio público en Railway (Settings → Networking → Generate Domain).
-5. Actualiza en Supabase la **Site URL** y **Redirect URLs** con tu dominio de Railway (`https://<tu-app>.up.railway.app/auth/callback`).
-6. Redeploy después de guardar variables.
+5. Redeploy después de guardar variables.
 
-La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTPS.
+La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTPS. La sesión persiste entre aperturas (cookies de Supabase Auth).
 
 ## Scripts
 
@@ -72,4 +67,4 @@ La app queda instalable como PWA en móvil y desktop una vez desplegada con HTTP
 
 ## Fase actual
 
-Fase 0: setup inicial (Next.js, Tailwind, PWA básica, Supabase Auth con magic link, `/dashboard` protegido). Mapa, importación de lugares y optimizador pendientes.
+Fase 0: setup inicial (Next.js, Tailwind, PWA básica, Supabase Auth con email/contraseña, `/dashboard` protegido). Mapa, importación de lugares y optimizador pendientes.
