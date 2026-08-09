@@ -27,6 +27,7 @@ Reglas:
 
 export async function rankNearbyPoisWithAI(input: {
   userQuery: string;
+  tripCity: string | null;
   travelers: TripTravelerPreferences[];
   pois: OverpassPoi[];
 }): Promise<{ suggestions: DiscoverSuggestion[]; error: string | null }> {
@@ -55,9 +56,12 @@ export async function rankNearbyPoisWithAI(input: {
     ? input.userQuery.trim()
     : "(sin pregunta — sugiere algo bueno cerca)";
 
+  const cityLine = input.tripCity?.trim() || "el destino del viaje activo";
+
   const userPrompt = [
     "Rankea los POIs más relevantes para este momento.",
     "",
+    `Viaje / ciudad activa: ${cityLine}`,
     `Pregunta / mood del usuario: ${moodLine}`,
     "",
     "Preferencias de los viajeros:",

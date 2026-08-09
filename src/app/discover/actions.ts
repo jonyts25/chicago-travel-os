@@ -4,6 +4,8 @@ import {
   rankNearbyPoisWithAI,
   type DiscoverSuggestion,
 } from "@/lib/ai/discover-places";
+import { resolveDiscoverSearchCoordinates } from "@/lib/discover/resolve-discover-location";
+import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import { addPlaceFromDiscover } from "@/lib/places/add-place-from-discover";
 import { queryNearbyPois } from "@/lib/overpass/query-nearby-pois";
 import { assertTripMember } from "@/lib/supabase/mutation-result";
@@ -16,7 +18,14 @@ export async function discoverPlacesAction(
   tripId: string,
   input: { lat: number; lng: number; query: string },
 ): Promise<
-  | { ok: true; suggestions: DiscoverSuggestion[]; poiCount: number }
+  | {
+      ok: true;
+      suggestions: DiscoverSuggestion[];
+      poiCount: number;
+      searchLat: number;
+      searchLng: number;
+      locationSource: "device" | "trip_center";
+    }
   | { ok: false; error: string }
 > {
   if (!Number.isFinite(input.lat) || !Number.isFinite(input.lng)) {
@@ -42,9 +51,15 @@ export async function discoverPlacesAction(
     return { ok: false, error: contextError ?? "No se pudo cargar el contexto." };
   }
 
+  const tripGeo = await loadTripGeocodingContext(supabase, tripId);
+  const resolved = resolveDiscoverSearchCoordinates(
+    { lat: input.lat, lng: input.lng },
+    tripGeo,
+  );
+
   const { pois, error: overpassError } = await queryNearbyPois({
-    lat: input.lat,
-    lng: input.lng,
+    lat: resolved.lat,
+    lng: resolved.lng,
     query: input.query,
   });
 
@@ -54,6 +69,7 @@ export async function discoverPlacesAction(
 
   const { suggestions, error: aiError } = await rankNearbyPoisWithAI({
     userQuery: input.query,
+    tripCity: tripGeo.base_location ?? context.baseLocation,
     travelers: context.travelers,
     pois,
   });
@@ -66,6 +82,9 @@ export async function discoverPlacesAction(
     ok: true,
     suggestions,
     poiCount: pois.length,
+    searchLat: resolved.lat,
+    searchLng: resolved.lng,
+    locationSource: resolved.source,
   };
 }
 

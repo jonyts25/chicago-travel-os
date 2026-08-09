@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   discoverPlacesAction,
@@ -14,26 +14,56 @@ import type { DiscoverSuggestion } from "@/lib/ai/discover-places";
 import {
   formatDistanceMeters,
   useLiveGeolocation,
+  type LocationSource,
 } from "@/lib/hoy/use-live-geolocation";
 import { formatCategory } from "@/lib/planning/format";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
-export function DiscoverView({ tripId }: { tripId: string }) {
+type DiscoverViewProps = {
+  tripId: string;
+  tripCity: string | null;
+  tripCenter: { lat: number; lng: number } | null;
+};
+
+export function DiscoverView({ tripId, tripCity, tripCenter }: DiscoverViewProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<DiscoverSuggestion[]>([]);
   const [poiCount, setPoiCount] = useState<number | null>(null);
+  const [searchCoords, setSearchCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [serverLocationSource, setServerLocationSource] = useState<
+    "device" | "trip_center" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [isSearching, startSearching] = useTransition();
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
-  const { permission, position, isSimulated, errorMessage, requestPermission } =
-    useLiveGeolocation({ enabled: true });
+  const fallbackCenter = useMemo(
+    () => tripCenter,
+    [tripCenter?.lat, tripCenter?.lng],
+  );
+
+  const {
+    permission,
+    position,
+    locationSource,
+    isSimulated,
+    errorMessage,
+    requestPermission,
+  } = useLiveGeolocation({
+    enabled: true,
+    fallbackCenter,
+    includeStoredSimulation: false,
+  });
 
   function handleSearch() {
     if (!position) {
-      setError("Necesitamos tu ubicación para buscar lugares cercanos.");
+      setError(
+        tripCenter
+          ? "Necesitamos tu ubicación o el centro del viaje para buscar lugares cercanos."
+          : "Necesitamos tu ubicación para buscar lugares cercanos.",
+      );
       return;
     }
 
@@ -48,12 +78,16 @@ export function DiscoverView({ tripId }: { tripId: string }) {
       if (!result.ok) {
         setSuggestions([]);
         setPoiCount(null);
+        setSearchCoords(null);
+        setServerLocationSource(null);
         setError(result.error);
         return;
       }
 
       setSuggestions(result.suggestions);
       setPoiCount(result.poiCount);
+      setSearchCoords({ lat: result.searchLat, lng: result.searchLng });
+      setServerLocationSource(result.locationSource);
     });
   }
 
@@ -88,11 +122,14 @@ export function DiscoverView({ tripId }: { tripId: string }) {
     <div className="flex flex-col gap-6">
       <Card
         title="Descubrir cerca de ti"
-        subtitle="Usamos tu ubicación en vivo, lugares reales de OpenStreetMap y vuestras preferencias para sugerir opciones."
+        subtitle="Usamos tu ubicación en vivo (o el centro del viaje como respaldo), lugares reales de OpenStreetMap y vuestras preferencias."
       >
         <LocationStatus
           permission={permission}
           position={position}
+          locationSource={locationSource}
+          tripCity={tripCity}
+          tripCenter={tripCenter}
           isSimulated={isSimulated}
           errorMessage={errorMessage}
           onRequestPermission={requestPermission}
@@ -125,7 +162,15 @@ export function DiscoverView({ tripId }: { tripId: string }) {
           y las preferencias del viaje. Revísalas antes de guardar.
         </p>
 
-        {poiCount != null ? (
+        {searchCoords ? (
+          <p className={cn(typography.muted, "mt-3")}>
+            Búsqueda en {searchCoords.lat.toFixed(5)}, {searchCoords.lng.toFixed(5)}
+            {serverLocationSource === "trip_center"
+              ? ` · usando centro del viaje${tripCity ? ` (${tripCity})` : ""}`
+              : " · usando ubicación del dispositivo"}
+            {poiCount != null ? ` · ${poiCount} POI(s) en OpenStreetMap` : ""}
+          </p>
+        ) : poiCount != null ? (
           <p className={cn(typography.muted, "mt-3")}>
             Analizamos {poiCount} lugar(es) cercanos en OpenStreetMap.
           </p>
@@ -176,12 +221,18 @@ export function DiscoverView({ tripId }: { tripId: string }) {
 function LocationStatus({
   permission,
   position,
+  locationSource,
+  tripCity,
+  tripCenter,
   isSimulated,
   errorMessage,
   onRequestPermission,
 }: {
   permission: string;
   position: { lat: number; lng: number } | null;
+  locationSource: LocationSource | null;
+  tripCity: string | null;
+  tripCenter: { lat: number; lng: number } | null;
   isSimulated: boolean;
   errorMessage: string | null;
   onRequestPermission: () => void;
@@ -190,17 +241,23 @@ function LocationStatus({
     return (
       <ErrorMessage
         message="Geolocalización no disponible."
-        technicalDetails="Tu navegador no soporta geolocalización."
+        technicalDetails={
+          tripCenter
+            ? `Usaremos el centro del viaje${tripCity ? ` (${tripCity})` : ""} como respaldo.`
+            : "Tu navegador no soporta geolocalización."
+        }
       />
     );
   }
 
-  if (permission === "denied") {
+  if (permission === "denied" && !position) {
     return (
       <div className={cn(surfaces.inset, "px-3 py-3")}>
         <p className={typography.body}>Permiso de ubicación denegado.</p>
         <p className={cn(typography.muted, "mt-1")}>
-          Activa la ubicación para este sitio en ajustes del navegador y vuelve a intentar.
+          {tripCenter
+            ? `Activa la ubicación en el navegador o usa el centro del viaje${tripCity ? ` (${tripCity})` : ""} cuando esté disponible.`
+            : "Activa la ubicación para este sitio en ajustes del navegador y vuelve a intentar."}
         </p>
       </div>
     );
@@ -210,7 +267,8 @@ function LocationStatus({
     return (
       <div className={cn(surfaces.inset, "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between")}>
         <p className={typography.secondary}>
-          Necesitamos tu ubicación en vivo para sugerir lugares cercanos.
+          Necesitamos tu ubicación en vivo para sugerir lugares cercanos
+          {tripCenter ? ` (o usaremos el centro del viaje${tripCity ? `: ${tripCity}` : ""})` : ""}.
         </p>
         <Button type="button" variant="secondary" onClick={onRequestPermission}>
           Permitir ubicación
@@ -220,9 +278,16 @@ function LocationStatus({
   }
 
   if (position) {
+    const sourceLabel =
+      locationSource === "trip_center"
+        ? `centro del viaje${tripCity ? ` (${tripCity})` : ""}`
+        : locationSource === "simulated"
+          ? "simulada (URL)"
+          : "dispositivo";
+
     return (
       <p className={cn(typography.secondary, surfaces.inset, "px-3 py-2")}>
-        Ubicación activa: {position.lat.toFixed(5)}, {position.lng.toFixed(5)}
+        Ubicación activa: {position.lat.toFixed(5)}, {position.lng.toFixed(5)} · {sourceLabel}
         {isSimulated ? " · simulada" : ""}
         {errorMessage ? ` · ${errorMessage}` : ""}
       </p>
