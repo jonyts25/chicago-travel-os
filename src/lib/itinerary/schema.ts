@@ -19,6 +19,7 @@ export type ItineraryItem = {
   place_id: string;
   order_index: number;
   is_fixed: boolean | null;
+  start_time: string | null;
 };
 
 export type ItineraryItemInsert = Pick<
