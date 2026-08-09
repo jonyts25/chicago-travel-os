@@ -100,6 +100,72 @@ export function formatTripTimeFromIso(
   return formatScheduleTime(isoTime);
 }
 
+export function getFlightDepartureCutoffInstant(
+  flightDeparture: string | null | undefined,
+  airportTransferMinutes: number,
+): Date | null {
+  if (!flightDeparture?.trim()) {
+    return null;
+  }
+
+  if (!Number.isFinite(airportTransferMinutes) || airportTransferMinutes < 0) {
+    return null;
+  }
+
+  const flightDate = new Date(flightDeparture);
+  if (Number.isNaN(flightDate.getTime())) {
+    return null;
+  }
+
+  return new Date(flightDate.getTime() - airportTransferMinutes * 60_000);
+}
+
+export function getFlightDepartureCutoffMinutes(
+  flightDeparture: string | null | undefined,
+  airportTransferMinutes: number,
+  timezone?: string | null,
+): number | null {
+  const cutoff = getFlightDepartureCutoffInstant(
+    flightDeparture,
+    airportTransferMinutes,
+  );
+  if (!cutoff) {
+    return null;
+  }
+
+  return getTripClockMinutes(cutoff, timezone);
+}
+
+export function formatFlightDepartureTime(
+  flightDeparture: string | null | undefined,
+  timezone: string | null | undefined,
+): string | null {
+  return formatTripTimeFromIso(flightDeparture, timezone);
+}
+
+export function formatFlightDepartureDateTime(
+  flightDeparture: string | null | undefined,
+  timezone: string | null | undefined,
+): string | null {
+  return formatTripDateTime(flightDeparture, timezone);
+}
+
+export function formatFlightDepartureCutoffTime(
+  flightDeparture: string | null | undefined,
+  airportTransferMinutes: number,
+  timezone: string | null | undefined,
+): string | null {
+  const cutoff = getFlightDepartureCutoffInstant(
+    flightDeparture,
+    airportTransferMinutes,
+  );
+  if (!cutoff) {
+    return null;
+  }
+
+  return formatTripTimeFromIso(cutoff.toISOString(), timezone);
+}
+
 export function formatDayStartSourceLabel(
   dayNumber: number,
   flightArrival: string | null | undefined,

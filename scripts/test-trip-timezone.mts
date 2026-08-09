@@ -16,7 +16,12 @@ import {
   resolveTripTimezone,
   tripDatetimeLocalValueToIso,
 } from "../src/lib/trips/trip-time";
-import { formatTripTimeFromIso } from "../src/lib/trips/travel-info";
+import {
+  formatFlightDepartureCutoffTime,
+  formatFlightDepartureTime,
+  formatTripTimeFromIso,
+  getFlightDepartureCutoffMinutes,
+} from "../src/lib/trips/travel-info";
 
 const chicagoTz = "America/Chicago";
 const chicagoArrivalUtc = "2026-09-17T04:59:00.000Z";
@@ -79,6 +84,17 @@ assert.equal(
   getCountdownLabel("17:00:00", chicagoTz, new Date(chicagoNoonUtc)),
   "En 5 h",
   "itinerary start_time should compare against trip clock, not device timezone",
+);
+
+const flightDepartureUtc = "2026-09-19T17:30:00.000Z";
+assert.equal(formatFlightDepartureTime(flightDepartureUtc, chicagoTz), "12:30 PM");
+assert.equal(
+  getFlightDepartureCutoffMinutes(flightDepartureUtc, 60, chicagoTz),
+  11 * 60 + 30,
+);
+assert.equal(
+  formatFlightDepartureCutoffTime(flightDepartureUtc, 60, chicagoTz),
+  "11:30 AM",
 );
 
 console.log("trip timezone checks passed");

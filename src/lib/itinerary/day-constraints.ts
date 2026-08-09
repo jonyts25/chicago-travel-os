@@ -8,12 +8,14 @@ import {
 } from "@/lib/itinerary/schedule-day";
 import { PLACE_CATEGORIES } from "@/lib/places/place-detail";
 import {
-  getTripClockMinutes,
+  getFlightDepartureCutoffMinutes,
+  resolveDayStartMinutesFromArrival,
+} from "@/lib/trips/travel-info";
+import {
   getTripDateOnlyString,
   isoToTripDatetimeLocalValue,
   tripDatetimeLocalValueToIso,
 } from "@/lib/trips/trip-time";
-import { resolveDayStartMinutesFromArrival } from "@/lib/trips/travel-info";
 
 export type TripDayConstraintsInput = {
   timezone?: string | null;
@@ -178,11 +180,11 @@ function computeFlightDayEndMinutes(
     return null;
   }
 
-  const cutoff = new Date(
-    flightDate.getTime() - trip.airportTransferMinutes * 60_000,
+  return getFlightDepartureCutoffMinutes(
+    trip.flightDeparture,
+    trip.airportTransferMinutes,
+    trip.timezone,
   );
-
-  return getTripClockMinutes(cutoff, trip.timezone);
 }
 
 function isFlightDepartureDay(
