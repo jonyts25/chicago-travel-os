@@ -5,6 +5,7 @@ import {
   PLACE_STATUS_PLANNED,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
+import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import { geocodePlaceWithRetries } from "@/lib/geocoding/nominatim";
 import { recalculateDayScheduleForPlace } from "@/lib/itinerary/recalculate-day-schedule";
 import type {
@@ -242,7 +243,8 @@ export async function retryPlaceGeocodingAction(
     return { ok: false, error: "Lugar no encontrado." };
   }
 
-  const geocoded = await geocodePlaceWithRetries(place.name);
+  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const geocoded = await geocodePlaceWithRetries(place.name, geocodingContext);
 
   if (!hasCoordinates(geocoded)) {
     return {

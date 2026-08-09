@@ -3,10 +3,15 @@ import {
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
 import { applyAIEnrichment, enrichPlacesWithAI } from "@/lib/ai/enrich-places";
+import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import {
   geocodePlaceWithRetries,
   NOMINATIM_DELAY_MS,
 } from "@/lib/geocoding/nominatim";
+import type { TripGeocodingContext } from "@/lib/geocoding/trip-geocoding-context";
+import {
+  normalizeTripGeocodingContext,
+} from "@/lib/geocoding/trip-geocoding-context";
 import {
   parseGoogleMapsExport,
   parsePlaceFromMapsUrl,
@@ -87,14 +92,16 @@ export async function importGoogleMapsPlaces(
   const existingById = new Map(
     ((existingRows ?? []) as ExistingPlaceRow[]).map((row) => [row.id, row]),
   );
+  const geocodingContext = await loadTripGeocodingContext(supabase);
 
-  const insertResult = await processAndInsertPlaces(toInsert);
+  const insertResult = await processAndInsertPlaces(toInsert, geocodingContext);
   summaryErrors.push(...insertResult.errors);
 
   const updateResult = await processAndUpdatePlaces(
     supabase,
     toUpdate,
     existingById,
+    geocodingContext,
   );
   summaryErrors.push(...updateResult.errors);
 
@@ -174,7 +181,12 @@ export async function addPlaceFromMapsUrl(
     ? [{ ...parsed.place, existingId: existingRow.id }]
     : [parsed.place];
 
-  const processed = await processParsedPlaces(inputPlaces, existingById);
+  const geocodingContext = await loadTripGeocodingContext(supabase);
+  const processed = await processParsedPlaces(
+    inputPlaces,
+    existingById,
+    geocodingContext,
+  );
   const saved = processed.places[0];
   const errors = [...processed.errors];
 
@@ -309,6 +321,7 @@ export async function addPlacesFromNames(
   const skippedDuplicate: string[] = [];
   const failedGeocode: string[] = [];
   const errors: string[] = [];
+  const geocodingContext = await loadTripGeocodingContext(supabase);
 
   for (const place of trimmedPlaces) {
     const normalized = normalizePlaceName(place.name);
@@ -329,7 +342,7 @@ export async function addPlacesFromNames(
       duration_minutes: null,
     };
 
-    const processed = await processParsedPlaces([parsed]);
+    const processed = await processParsedPlaces([parsed], new Map(), geocodingContext);
     errors.push(...processed.errors);
 
     const saved = processed.places[0];
@@ -368,6 +381,7 @@ export async function runImportPipelineDryRun(
   fileContent: string,
   filename?: string,
   existingIds: string[] = [],
+  geocodingContext: TripGeocodingContext = normalizeTripGeocodingContext(null),
 ): Promise<ImportPlacesResult> {
   const parsed = parseGoogleMapsExport(fileContent, filename);
   const withoutFeatureId = parsed.filter((place) => !place.google_place_id);
@@ -398,10 +412,11 @@ export async function runImportPipelineDryRun(
     };
   }
 
-  const insertResult = await processParsedPlaces(toInsert);
+  const insertResult = await processParsedPlaces(toInsert, new Map(), geocodingContext);
   const updateResult = await processParsedPlaces(
     toUpdate,
     new Map(existing.map((row) => [row.id, row])),
+    geocodingContext,
   );
 
   return {
@@ -418,13 +433,14 @@ export async function runImportPipelineDryRun(
 
 async function processAndInsertPlaces(
   places: ParsedGooglePlace[],
+  geocodingContext: TripGeocodingContext,
 ): Promise<ProcessBatchResult> {
   if (places.length === 0) {
     return emptyProcessResult();
   }
 
   const supabase = await createClient();
-  const processed = await processParsedPlaces(places);
+  const processed = await processParsedPlaces(places, new Map(), geocodingContext);
 
   if (processed.places.length === 0) {
     return processed;
@@ -451,12 +467,17 @@ async function processAndUpdatePlaces(
   supabase: Awaited<ReturnType<typeof createClient>>,
   places: PlaceToUpdate[],
   existingById: Map<string, ExistingPlaceRow>,
+  geocodingContext: TripGeocodingContext,
 ): Promise<ProcessBatchResult> {
   if (places.length === 0) {
     return emptyProcessResult();
   }
 
-  const processed = await processParsedPlaces(places, existingById);
+  const processed = await processParsedPlaces(
+    places,
+    existingById,
+    geocodingContext,
+  );
   let updatedCount = 0;
   const errors = [...processed.errors];
 
@@ -504,6 +525,7 @@ type ProcessBatchResult = {
 async function processParsedPlaces(
   places: (ParsedGooglePlace | PlaceToUpdate)[],
   existingById: Map<string, ExistingPlaceRow> = new Map(),
+  geocodingContext: TripGeocodingContext = normalizeTripGeocodingContext(null),
 ): Promise<ProcessBatchResult> {
   if (places.length === 0) {
     return emptyProcessResult();
@@ -521,7 +543,7 @@ async function processParsedPlaces(
     let address = existing?.address ?? place.address;
 
     if (!hasCoordinates({ lat, lng })) {
-      const geocoded = await geocodePlaceWithRetries(place.name);
+      const geocoded = await geocodePlaceWithRetries(place.name, geocodingContext);
 
       if (hasCoordinates(geocoded)) {
         lat = geocoded.lat;
