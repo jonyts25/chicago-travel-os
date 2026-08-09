@@ -5,15 +5,13 @@ import {
   PLACE_STATUS_PLANNED,
   PLACE_STATUS_UNPLANNED,
 } from "@/lib/constants";
-import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
-import { geocodePlaceWithRetries } from "@/lib/geocoding/nominatim";
+import { geocodePlaceById } from "@/lib/places/geocode-place";
 import { recalculateDayScheduleForPlace } from "@/lib/itinerary/recalculate-day-schedule";
 import type {
   PlaceDetail,
   PlaceMutationResult,
   UpdatePlaceInput,
 } from "@/lib/places/place-detail";
-import { hasCoordinates } from "@/lib/places/schema";
 import { timeInputToDbValue } from "@/lib/places/place-format";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
@@ -228,43 +226,10 @@ export async function retryPlaceGeocodingAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
-  const { data: place, error: fetchError } = await supabase
-    .from("places")
-    .select("id, name, lat, lng, address")
-    .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID)
-    .maybeSingle();
+  const result = await geocodePlaceById(supabase, placeId);
 
-  if (fetchError) {
-    return { ok: false, error: fetchError.message };
-  }
-
-  if (!place) {
-    return { ok: false, error: "Lugar no encontrado." };
-  }
-
-  const geocodingContext = await loadTripGeocodingContext(supabase);
-  const geocoded = await geocodePlaceWithRetries(place.name, geocodingContext);
-
-  if (!hasCoordinates(geocoded)) {
-    return {
-      ok: false,
-      error: "Nominatim no encontró coordenadas para este nombre.",
-    };
-  }
-
-  const { error: updateError } = await supabase
-    .from("places")
-    .update({
-      lat: geocoded.lat,
-      lng: geocoded.lng,
-      address: geocoded.address,
-    })
-    .eq("id", placeId)
-    .eq("trip_id", CHICAGO_TRIP_ID);
-
-  if (updateError) {
-    return { ok: false, error: updateError.message };
+  if (!result.ok) {
+    return { ok: false, error: result.error };
   }
 
   revalidatePlaceViews();
