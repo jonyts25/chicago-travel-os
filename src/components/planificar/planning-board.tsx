@@ -9,6 +9,7 @@ import {
   regenerateDayItineraryAction,
   removePlaceFromDayAction,
 } from "@/app/planificar/actions";
+import { PlaceDetailModal } from "@/components/planificar/place-detail-modal";
 import type { PlanningBoardData, PlanningDay } from "@/lib/itinerary/schema";
 import type { OptimizerSummary } from "@/lib/itinerary/optimizer/types";
 import { formatCategory, formatDurationMinutes } from "@/lib/planning/format";
@@ -28,6 +29,7 @@ export function PlanningBoard({
   const [optimizerSummary, setOptimizerSummary] = useState<OptimizerSummary | null>(
     null,
   );
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
 
   const categories = useMemo(() => {
     const values = new Set<string>();
@@ -76,6 +78,12 @@ export function PlanningBoard({
 
   return (
     <div className="flex flex-col gap-6">
+      <PlaceDetailModal
+        placeId={selectedPlaceId}
+        days={days.map((day) => ({ id: day.id, day_number: day.day_number }))}
+        onClose={() => setSelectedPlaceId(null)}
+      />
+
       {actionError ? (
         <p className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">
           {actionError}
@@ -121,7 +129,10 @@ export function PlanningBoard({
                 key={place.id}
                 className="rounded-lg border border-amber-500/20 bg-slate-950/40 px-3 py-2 text-sm text-amber-50"
               >
-                {place.name}
+                <PlaceOpenButton
+                  name={place.name}
+                  onOpen={() => setSelectedPlaceId(place.id)}
+                />
                 <span className="text-amber-100/70">
                   {" "}
                   · {formatCategory(place.category)}
@@ -171,6 +182,7 @@ export function PlanningBoard({
                 place={place}
                 days={days}
                 disabled={isPending}
+                onOpen={() => setSelectedPlaceId(place.id)}
                 onAssign={(dayId) =>
                   runAction(() => assignPlaceToDayAction(place.id, dayId))
                 }
@@ -211,6 +223,7 @@ export function PlanningBoard({
           <DayPlanPanel
             day={activeDay}
             disabled={isPending}
+            onOpenPlace={(placeId) => setSelectedPlaceId(placeId)}
             onMoveUp={(itemId) =>
               runAction(() => moveItineraryItemAction(itemId, "up"))
             }
@@ -288,15 +301,35 @@ function OptimizerSummaryPanel({ summary }: { summary: OptimizerSummary }) {
   );
 }
 
+function PlaceOpenButton({
+  name,
+  onOpen,
+}: {
+  name: string;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="font-medium text-left text-white underline decoration-blue-500/50 underline-offset-2 hover:text-blue-200"
+    >
+      {name}
+    </button>
+  );
+}
+
 function UnplannedPlaceCard({
   place,
   days,
   disabled,
+  onOpen,
   onAssign,
 }: {
   place: PlanningBoardData["unplannedPlaces"][number];
   days: PlanningDay[];
   disabled: boolean;
+  onOpen: () => void;
   onAssign: (dayId: string) => void;
 }) {
   const [selectedDayId, setSelectedDayId] = useState(days[0]?.id ?? "");
@@ -305,7 +338,7 @@ function UnplannedPlaceCard({
     <li className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="font-medium text-white">{place.name}</p>
+          <PlaceOpenButton name={place.name} onOpen={onOpen} />
           <p className="mt-1 text-sm text-slate-400">
             {formatCategory(place.category)} · {formatDurationMinutes(place.duration_minutes)}
           </p>
@@ -341,6 +374,7 @@ function UnplannedPlaceCard({
 function DayPlanPanel({
   day,
   disabled,
+  onOpenPlace,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -348,6 +382,7 @@ function DayPlanPanel({
 }: {
   day: PlanningDay;
   disabled: boolean;
+  onOpenPlace: (placeId: string) => void;
   onMoveUp: (itemId: string) => void;
   onMoveDown: (itemId: string) => void;
   onRemove: (itemId: string) => void;
@@ -393,7 +428,10 @@ function DayPlanPanel({
                     #{index + 1}
                     {item.is_fixed ? " · Fijado" : ""}
                   </p>
-                  <p className="mt-1 font-medium text-white">{item.place.name}</p>
+                  <PlaceOpenButton
+                    name={item.place.name}
+                    onOpen={() => onOpenPlace(item.place.id)}
+                  />
                   <p className="mt-1 text-sm text-slate-400">
                     {formatCategory(item.place.category)} ·{" "}
                     {formatDurationMinutes(item.place.duration_minutes)}
@@ -402,7 +440,7 @@ function DayPlanPanel({
 
                 {item.is_fixed ? (
                   <p className="text-xs text-slate-500">
-                    No editable — reservado/fijado
+                    Fijado — puedes editar el detalle, no reordenar
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-2">
