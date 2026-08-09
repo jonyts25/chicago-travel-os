@@ -13,7 +13,6 @@ import {
   resolveFocusCategory,
   toTimeInputValue,
 } from "@/lib/itinerary/day-constraints";
-import { DEFAULT_DAY_START_MINUTES } from "@/lib/itinerary/schedule-day";
 import type { PlanningDay } from "@/lib/itinerary/schema";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
@@ -38,8 +37,7 @@ export function DaySettingsEditor({ day, disabled = false }: DaySettingsEditorPr
   }, [day.id, day.focus, day.day_end_override]);
 
   const focusCategory = resolveFocusCategory(focus.trim() || null);
-  const effectiveEndMinutes =
-    DEFAULT_DAY_START_MINUTES + day.day_active_minutes_limit;
+  const effectiveEndMinutes = day.day_end_minutes;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

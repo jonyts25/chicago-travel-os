@@ -61,6 +61,7 @@ export type PlanningDay = {
   day_start_source: "flight_arrival" | "default";
   day_active_minutes_limit: number;
   day_start_minutes: number;
+  day_end_minutes: number;
   calendar_date: string | null;
   calendar_date_label: string | null;
   items: PlanningDayItem[];

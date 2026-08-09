@@ -302,6 +302,79 @@ export async function moveItineraryItemAction(
   return { ok: true };
 }
 
+export async function clearDayAction(
+  itineraryDayId: string,
+): Promise<PlanningActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Debes iniciar sesión." };
+  }
+
+  const { data: day, error: dayError } = await supabase
+    .from("itinerary_days")
+    .select("id")
+    .eq("id", itineraryDayId)
+    .eq("trip_id", CHICAGO_TRIP_ID)
+    .maybeSingle();
+
+  if (dayError) {
+    return { ok: false, error: dayError.message };
+  }
+
+  if (!day) {
+    return { ok: false, error: "Día no encontrado." };
+  }
+
+  const { data: dayItems, error: itemsError } = await supabase
+    .from("itinerary_items")
+    .select("id, place_id, is_fixed")
+    .eq("itinerary_day_id", itineraryDayId);
+
+  if (itemsError) {
+    return { ok: false, error: itemsError.message };
+  }
+
+  const removableItems = (dayItems ?? []).filter((item) => !item.is_fixed);
+  if (removableItems.length === 0) {
+    revalidatePath("/planificar");
+    return { ok: true };
+  }
+
+  const removableIds = removableItems.map((item) => item.id);
+  const placeIds = removableItems.map((item) => item.place_id);
+
+  const { error: deleteError } = await supabase
+    .from("itinerary_items")
+    .delete()
+    .in("id", removableIds);
+
+  if (deleteError) {
+    return { ok: false, error: deleteError.message };
+  }
+
+  const { error: unplanError } = await supabase
+    .from("places")
+    .update({ status: PLACE_STATUS_UNPLANNED })
+    .in("id", placeIds)
+    .eq("trip_id", CHICAGO_TRIP_ID);
+
+  if (unplanError) {
+    return { ok: false, error: unplanError.message };
+  }
+
+  const scheduleResult = await recalculateDaySchedule(supabase, itineraryDayId);
+  if (!scheduleResult.ok) {
+    return { ok: false, error: scheduleResult.error };
+  }
+
+  revalidatePath("/planificar");
+  return { ok: true };
+}
+
 export async function generateItineraryAction(): Promise<OptimizerSummary> {
   const result = await runFullItineraryOptimizer();
   if (result.ok) {
