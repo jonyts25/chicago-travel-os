@@ -10,7 +10,7 @@ import { ErrorMessage } from "@/components/ui/error-message";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast-provider";
 import {
-  formatTicketResearchSearchedAt,
+  formatTicketResearchResearchedAt,
   type PlaceTicketResearchRecord,
 } from "@/lib/places/place-ticket-research";
 import { cn, surfaces, typography } from "@/lib/ui/styles";
@@ -111,8 +111,8 @@ export function PlaceTicketResearchSection({
       {research ? (
         <div className="mt-4 space-y-3">
           <p className={cn(typography.secondary, "text-xs")}>
-            Consultado: {formatTicketResearchSearchedAt(research.searchedAt, tripTimezone)}
-            {research.webSearchCount > 0
+            Consultado: {formatTicketResearchResearchedAt(research.researchedAt, tripTimezone)}
+            {research.webSearchCount != null && research.webSearchCount > 0
               ? ` · ${research.webSearchCount} búsqueda(s) web`
               : ""}
           </p>

@@ -7,8 +7,10 @@ export type PlaceTicketResearchRecord = {
   placeId: string;
   summary: string;
   sources: PlaceTicketResearchSource[];
-  webSearchCount: number;
-  searchedAt: string;
+  researchedAt: string;
+  requestedBy: string | null;
+  /** Present only immediately after a fresh web search (not persisted). */
+  webSearchCount?: number;
 };
 
 export type PlaceTicketResearchSource = {
@@ -91,7 +93,7 @@ export async function researchPlaceTickets(
   };
 }
 
-export function formatTicketResearchSearchedAt(
+export function formatTicketResearchResearchedAt(
   isoDate: string,
   timezone?: string | null,
 ): string {
