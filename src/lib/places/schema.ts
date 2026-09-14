@@ -34,7 +34,8 @@ export type PlaceInsert = Pick<
   | "status"
   | "duration_minutes"
   | "notes"
->;
+> &
+  Partial<Pick<Place, "priority" | "interest">>;
 
 export type PlaceMapMarker = Pick<
   Place,

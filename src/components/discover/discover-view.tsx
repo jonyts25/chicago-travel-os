@@ -6,6 +6,7 @@ import {
   discoverPlacesAction,
   saveDiscoverPlaceAction,
 } from "@/app/discover/actions";
+import { PlacePriorityInterestFields } from "@/components/places/place-priority-interest-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
@@ -17,6 +18,8 @@ import {
   type LocationSource,
 } from "@/lib/hoy/use-live-geolocation";
 import { formatCategory } from "@/lib/planning/format";
+import type { PlaceInterest, PlacePriority } from "@/lib/places/place-detail";
+import { isPlaceInterest, isPlacePriority } from "@/lib/places/place-classification";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type DiscoverViewProps = {
@@ -38,6 +41,8 @@ export function DiscoverView({ tripId, tripCity, tripCenter }: DiscoverViewProps
   const [error, setError] = useState<string | null>(null);
   const [isSearching, startSearching] = useTransition();
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [priority, setPriority] = useState<PlacePriority | "">("");
+  const [interest, setInterest] = useState<PlaceInterest | "">("");
 
   const fallbackCenter = useMemo(
     () => tripCenter,
@@ -92,10 +97,24 @@ export function DiscoverView({ tripId, tripCity, tripCenter }: DiscoverViewProps
   }
 
   function handleSave(suggestion: DiscoverSuggestion, forceDuplicate = false) {
+    if (!isPlacePriority(priority)) {
+      setError("Selecciona una prioridad antes de guardar el lugar.");
+      return;
+    }
+
+    if (!isPlaceInterest(interest)) {
+      setError("Selecciona para quién es el lugar.");
+      return;
+    }
+
     setSavingKey(suggestion.osmId);
     setError(null);
 
-    saveDiscoverPlaceAction(tripId, suggestion, { forceDuplicate }).then((result) => {
+    saveDiscoverPlaceAction(tripId, suggestion, {
+      forceDuplicate,
+      priority,
+      interest,
+    }).then((result) => {
       setSavingKey(null);
 
       if (!result.ok) {
@@ -161,6 +180,17 @@ export function DiscoverView({ tripId, tripCity, tripCenter }: DiscoverViewProps
           Las sugerencias combinan POIs reales de OpenStreetMap con ranking de IA según tu pregunta
           y las preferencias del viaje. Revísalas antes de guardar.
         </p>
+
+        <div className="mt-4">
+          <PlacePriorityInterestFields
+            priority={priority}
+            interest={interest}
+            onPriorityChange={setPriority}
+            onInterestChange={setInterest}
+            required
+            disabled={isSearching || savingKey != null}
+          />
+        </div>
 
         {searchCoords ? (
           <p className={cn(typography.muted, "mt-3")}>

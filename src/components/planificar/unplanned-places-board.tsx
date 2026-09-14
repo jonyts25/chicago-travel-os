@@ -91,15 +91,20 @@ export function UnplannedPlacesBoard({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {mode === "scheduled" ? (
-          <Link href={tripPaths(tripId).planificar}>
+        <div className="flex flex-wrap gap-2">
+          {mode === "scheduled" ? (
+            <Link href={tripPaths(tripId).planificar}>
+              <Button type="button" variant="secondary">
+                Volver al itinerario
+              </Button>
+            </Link>
+          ) : null}
+          <Link href={tripPaths(tripId).planificarLugaresClasificar}>
             <Button type="button" variant="secondary">
-              Volver al itinerario
+              Prioridad e interés
             </Button>
           </Link>
-        ) : (
-          <div />
-        )}
+        </div>
         <Button type="button" variant="secondary" disabled={isPending} onClick={refreshPlaces}>
           Refrescar
         </Button>

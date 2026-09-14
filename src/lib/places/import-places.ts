@@ -22,6 +22,7 @@ import type {
   ImportPlacesResult,
   ParsedGooglePlace,
 } from "@/lib/importers/types";
+import type { PlaceCreationMeta } from "@/lib/places/place-classification";
 import type { PlaceInsert } from "@/lib/places/schema";
 import { hasCoordinates } from "@/lib/places/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -128,6 +129,7 @@ export async function addPlaceFromMapsUrl(
   tripId: string,
   mapsUrl: string,
   manualName?: string,
+  creationMeta?: PlaceCreationMeta,
 ): Promise<AddPlaceResult> {
   const emptyResult = (): AddPlaceResult => ({
     ok: false,
@@ -236,7 +238,7 @@ export async function addPlaceFromMapsUrl(
 
   const { error: insertError } = await supabase
     .from("places")
-    .insert(buildPlaceInsertRow(tripId, saved));
+    .insert(buildPlaceInsertRow(tripId, saved, creationMeta));
 
   if (insertError) {
     return {
@@ -268,6 +270,7 @@ export type AddPlacesFromNamesResult = {
 export async function addPlacesFromNames(
   tripId: string,
   places: { name: string; notes?: string | null }[],
+  creationMeta?: PlaceCreationMeta,
 ): Promise<AddPlacesFromNamesResult> {
   const supabase = await createClient();
   const {
@@ -356,7 +359,7 @@ export async function addPlacesFromNames(
 
     const { error: insertError } = await supabase
       .from("places")
-      .insert(buildPlaceInsertRow(tripId, saved));
+      .insert(buildPlaceInsertRow(tripId, saved, creationMeta));
 
     if (insertError) {
       errors.push(`No se pudo agregar "${place.name}": ${insertError.message}`);
@@ -592,7 +595,11 @@ async function processParsedPlaces(
   };
 }
 
-function buildPlaceInsertRow(tripId: string, place: ProcessedPlace): PlaceInsert {
+function buildPlaceInsertRow(
+  tripId: string,
+  place: ProcessedPlace,
+  creationMeta?: PlaceCreationMeta,
+): PlaceInsert {
   return {
     trip_id: tripId,
     name: place.name,
@@ -605,6 +612,8 @@ function buildPlaceInsertRow(tripId: string, place: ProcessedPlace): PlaceInsert
     category: place.category,
     duration_minutes: place.duration_minutes,
     status: PLACE_STATUS_UNPLANNED,
+    priority: creationMeta?.priority,
+    interest: creationMeta?.interest,
   };
 }
 

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { addPlaceAction } from "@/app/import/agregar/actions";
+import { PlacePriorityInterestFields } from "@/components/places/place-priority-interest-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
@@ -11,6 +12,8 @@ import { extractPlaceNameFromMapsUrl } from "@/lib/importers/google-maps";
 import type { AddPlaceResult } from "@/lib/importers/types";
 import { tripPaths } from "@/lib/trips/trip-paths";
 import { formatCategory } from "@/lib/planning/format";
+import type { PlaceInterest, PlacePriority } from "@/lib/places/place-detail";
+import { isPlaceInterest, isPlacePriority } from "@/lib/places/place-classification";
 import { inputs, typography } from "@/lib/ui/styles";
 
 type AddPlaceFormProps = {
@@ -25,6 +28,9 @@ export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps)
   const [showNameField, setShowNameField] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [result, setResult] = useState<AddPlaceResult | null>(null);
+  const [priority, setPriority] = useState<PlacePriority | "">("");
+  const [interest, setInterest] = useState<PlaceInterest | "">("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialMapsUrl) {
@@ -46,10 +52,24 @@ export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError(null);
+
+    if (!isPlacePriority(priority)) {
+      setFormError("Selecciona una prioridad para el lugar.");
+      return;
+    }
+
+    if (!isPlaceInterest(interest)) {
+      setFormError("Selecciona para quién es el lugar.");
+      return;
+    }
+
     setStatus("loading");
     setResult(null);
 
     const formData = new FormData(event.currentTarget);
+    formData.set("priority", priority);
+    formData.set("interest", interest);
     const summary = await addPlaceAction(tripId, formData);
 
     setResult(summary);
@@ -66,6 +86,8 @@ export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps)
       setMapsUrl("");
       setManualName("");
       setShowNameField(false);
+      setPriority("");
+      setInterest("");
     }
   }
 
@@ -121,6 +143,18 @@ export function AddPlaceForm({ tripId, initialMapsUrl = "" }: AddPlaceFormProps)
               Editar
             </button>
           </p>
+        ) : null}
+
+        <PlacePriorityInterestFields
+          priority={priority}
+          interest={interest}
+          onPriorityChange={setPriority}
+          onInterestChange={setInterest}
+          required
+        />
+
+        {formError ? (
+          <ErrorMessage message={formError} />
         ) : null}
 
         <Button type="submit" loading={status === "loading"}>

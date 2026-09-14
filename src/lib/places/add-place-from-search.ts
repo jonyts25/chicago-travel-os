@@ -7,6 +7,7 @@ import {
   type NearbyPlaceRecord,
 } from "@/lib/places/nearby-duplicate";
 import type { PlaceCategory } from "@/lib/importers/types";
+import type { PlaceCreationMeta } from "@/lib/places/place-classification";
 import type { PlaceInsert } from "@/lib/places/schema";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -34,7 +35,7 @@ export async function addPlaceFromSearchSelection(
   supabase: SupabaseClient,
   tripId: string,
   selection: AddPlaceFromSearchInput,
-  options: { forceDuplicate?: boolean } = {},
+  options: { forceDuplicate?: boolean; creationMeta?: PlaceCreationMeta } = {},
 ): Promise<AddPlaceFromSearchResult> {
   const name = selection.name.trim();
   if (!name) {
@@ -97,6 +98,8 @@ export async function addPlaceFromSearchSelection(
     category: parsedPlace.category,
     duration_minutes: parsedPlace.duration_minutes,
     status: PLACE_STATUS_UNPLANNED,
+    priority: options.creationMeta?.priority,
+    interest: options.creationMeta?.interest,
   };
 
   const { data, error } = await supabase

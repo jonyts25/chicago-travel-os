@@ -6,11 +6,14 @@ import {
   addSelectedPlaceSuggestionsAction,
   suggestPlacesAction,
 } from "@/app/planificar/suggestion-actions";
+import { PlacePriorityInterestFields } from "@/components/places/place-priority-interest-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import type { PlaceSuggestion } from "@/lib/ai/suggest-places";
+import type { PlaceInterest, PlacePriority } from "@/lib/places/place-detail";
+import { isPlaceInterest, isPlacePriority } from "@/lib/places/place-classification";
 import { cn, surfaces, typography } from "@/lib/ui/styles";
 
 export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
@@ -21,6 +24,8 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [priority, setPriority] = useState<PlacePriority | "">("");
+  const [interest, setInterest] = useState<PlaceInterest | "">("");
   const [contextSummary, setContextSummary] = useState<{
     locationLabel: "zona" | "hotel/base";
     locationValue: string;
@@ -75,8 +80,21 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
 
     setError(null);
 
+    if (!isPlacePriority(priority)) {
+      setError("Selecciona una prioridad para los lugares sugeridos.");
+      return;
+    }
+
+    if (!isPlaceInterest(interest)) {
+      setError("Selecciona para quién son los lugares sugeridos.");
+      return;
+    }
+
     startAdding(async () => {
-      const result = await addSelectedPlaceSuggestionsAction(tripId, selected);
+      const result = await addSelectedPlaceSuggestionsAction(tripId, selected, {
+        priority,
+        interest,
+      });
       if (!result.ok) {
         setError(result.error ?? "No se pudieron agregar los lugares.");
         return;
@@ -146,6 +164,15 @@ export function PlaceSuggestionsPanel({ tripId }: { tripId: string }) {
 
       {suggestions.length > 0 ? (
         <div className="mt-4 flex flex-col gap-4">
+          <PlacePriorityInterestFields
+            priority={priority}
+            interest={interest}
+            onPriorityChange={setPriority}
+            onInterestChange={setInterest}
+            required
+            disabled={isAdding}
+          />
+
           <ul className="space-y-2">
             {suggestions.map((suggestion) => {
               const key = suggestionKey(suggestion);

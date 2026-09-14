@@ -7,6 +7,7 @@ import {
 import { resolveDiscoverSearchCoordinates } from "@/lib/discover/resolve-discover-location";
 import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import { addPlaceFromDiscover } from "@/lib/places/add-place-from-discover";
+import { parsePlaceCreationMeta } from "@/lib/places/place-classification";
 import { queryNearbyPois } from "@/lib/overpass/query-nearby-pois";
 import { assertTripMember } from "@/lib/supabase/mutation-result";
 import { createClient } from "@/lib/supabase/server";
@@ -91,7 +92,7 @@ export async function discoverPlacesAction(
 export async function saveDiscoverPlaceAction(
   tripId: string,
   suggestion: DiscoverSuggestion,
-  options: { forceDuplicate?: boolean } = {},
+  options: { forceDuplicate?: boolean; priority?: string; interest?: string } = {},
 ): Promise<
   | { ok: true; placeId: string; name: string }
   | {
@@ -115,7 +116,19 @@ export async function saveDiscoverPlaceAction(
     return { ok: false, error: membership.error };
   }
 
-  const result = await addPlaceFromDiscover(supabase, tripId, suggestion, options);
+  const classification = parsePlaceCreationMeta({
+    priority: options.priority,
+    interest: options.interest,
+  });
+
+  if (!classification.ok) {
+    return { ok: false, error: classification.error };
+  }
+
+  const result = await addPlaceFromDiscover(supabase, tripId, suggestion, {
+    forceDuplicate: options.forceDuplicate,
+    creationMeta: classification.meta,
+  });
 
   if (!result.ok) {
     return {

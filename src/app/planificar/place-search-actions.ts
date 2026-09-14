@@ -5,6 +5,7 @@ import {
   type AddPlaceFromSearchInput,
   type AddPlaceFromSearchResult,
 } from "@/lib/places/add-place-from-search";
+import { parsePlaceCreationMeta } from "@/lib/places/place-classification";
 import { loadTripGeocodingContext } from "@/lib/geocoding/load-trip-geocoding-context";
 import {
   searchPlacesWithNominatim,
@@ -49,7 +50,11 @@ export async function searchPlacesAction(
 export async function addPlaceFromSearchAction(
   tripId: string,
   selection: AddPlaceFromSearchInput,
-  options?: { forceDuplicate?: boolean },
+  options?: {
+    forceDuplicate?: boolean;
+    priority?: string;
+    interest?: string;
+  },
 ): Promise<AddPlaceFromSearchResult> {
   const supabase = await createClient();
   const {
@@ -60,8 +65,20 @@ export async function addPlaceFromSearchAction(
     return { ok: false, error: "Debes iniciar sesión." };
   }
 
+  const classification = parsePlaceCreationMeta({
+    priority: options?.priority,
+    interest: options?.interest,
+  });
+
+  if (!classification.ok) {
+    return { ok: false, error: classification.error };
+  }
+
   try {
-    const result = await addPlaceFromSearchSelection(supabase, tripId, selection, options);
+    const result = await addPlaceFromSearchSelection(supabase, tripId, selection, {
+      forceDuplicate: options?.forceDuplicate,
+      creationMeta: classification.meta,
+    });
 
     if (result.ok) {
       for (const path of revalidateTripPaths(tripId)) {

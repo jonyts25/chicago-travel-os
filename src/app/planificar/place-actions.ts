@@ -6,9 +6,15 @@ import {
 } from "@/lib/constants";
 import { geocodePlaceById } from "@/lib/places/geocode-place";
 import { recalculateDayScheduleForPlace } from "@/lib/itinerary/recalculate-day-schedule";
+import {
+  parsePlaceClassificationUpdate,
+  parsePlaceCreationMeta,
+} from "@/lib/places/place-classification";
 import type {
   PlaceDetail,
+  PlaceInterest,
   PlaceMutationResult,
+  PlacePriority,
   UpdatePlaceInput,
 } from "@/lib/places/place-detail";
 import { timeInputToDbValue } from "@/lib/places/place-format";
@@ -129,6 +135,15 @@ export async function updatePlaceAction(
     return { ok: false, error: "El nombre es obligatorio." };
   }
 
+  const classification = parsePlaceClassificationUpdate({
+    priority: input.priority,
+    interest: input.interest,
+  });
+
+  if (!classification.ok) {
+    return { ok: false, error: classification.error };
+  }
+
   if (input.reservation_required && !input.reservation_start_time) {
     return {
       ok: false,
@@ -167,8 +182,8 @@ export async function updatePlaceAction(
   const placePayload = {
     name: trimmedName,
     category: input.category || null,
-    priority: input.priority || null,
-    interest: input.interest || null,
+    priority: classification.priority,
+    interest: classification.interest,
     duration_minutes: input.duration_minutes,
     notes: input.notes?.trim() || null,
     reservation_required: input.reservation_required,
@@ -265,6 +280,59 @@ export async function deletePlaceAction(
 
   revalidatePlaceViews(tripId);
   return { ok: true };
+}
+
+export async function bulkUpdatePlacesClassificationAction(
+  tripId: string,
+  updates: Array<{
+    placeId: string;
+    priority: PlacePriority;
+    interest: PlaceInterest;
+  }>,
+): Promise<{ ok: boolean; error?: string; updated: number }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Debes iniciar sesión.", updated: 0 };
+  }
+
+  if (updates.length === 0) {
+    return { ok: false, error: "No hay cambios para guardar.", updated: 0 };
+  }
+
+  let updated = 0;
+
+  for (const entry of updates) {
+    const classification = parsePlaceClassificationUpdate({
+      priority: entry.priority,
+      interest: entry.interest,
+    });
+
+    if (!classification.ok) {
+      return { ok: false, error: classification.error, updated };
+    }
+
+    const { error } = await supabase
+      .from("places")
+      .update({
+        priority: classification.priority,
+        interest: classification.interest,
+      })
+      .eq("id", entry.placeId)
+      .eq("trip_id", tripId);
+
+    if (error) {
+      return { ok: false, error: error.message, updated };
+    }
+
+    updated += 1;
+  }
+
+  revalidatePlaceViews(tripId);
+  return { ok: true, updated };
 }
 
 function normalizeReservationTime(value: string | null): string | null {

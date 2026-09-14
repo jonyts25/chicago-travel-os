@@ -5,11 +5,14 @@ import {
   addPlaceFromSearchAction,
   searchPlacesAction,
 } from "@/app/planificar/place-search-actions";
+import { PlacePriorityInterestFields } from "@/components/places/place-priority-interest-fields";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { useToast } from "@/components/ui/toast-provider";
 import type { NominatimPlaceSearchResult } from "@/lib/geocoding/nominatim-search";
+import type { PlaceInterest, PlacePriority } from "@/lib/places/place-detail";
+import { isPlaceInterest, isPlacePriority } from "@/lib/places/place-classification";
 import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 
 type PlaceSearchPanelProps = {
@@ -32,6 +35,8 @@ export function PlaceSearchPanel({
   const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
   const [isSearching, startSearching] = useTransition();
   const [isAdding, startAdding] = useTransition();
+  const [priority, setPriority] = useState<PlacePriority | "">("");
+  const [interest, setInterest] = useState<PlaceInterest | "">("");
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,18 +59,40 @@ export function PlaceSearchPanel({
     });
   }
 
+  function validateClassification(): string | null {
+    if (!isPlacePriority(priority)) {
+      return "Selecciona una prioridad antes de agregar el lugar.";
+    }
+
+    if (!isPlaceInterest(interest)) {
+      return "Selecciona para quién es el lugar.";
+    }
+
+    return null;
+  }
+
   function handleSelect(result: NominatimPlaceSearchResult) {
     setError(null);
     setDuplicateMessage(null);
     setPendingSelection(null);
 
+    const validationError = validateClassification();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     startAdding(async () => {
-      const response = await addPlaceFromSearchAction(tripId, {
-        name: result.name,
-        address: result.address,
-        lat: result.lat,
-        lng: result.lng,
-      });
+      const response = await addPlaceFromSearchAction(
+        tripId,
+        {
+          name: result.name,
+          address: result.address,
+          lat: result.lat,
+          lng: result.lng,
+        },
+        { priority, interest },
+      );
 
       if (response.ok) {
         showToast(`"${response.name}" agregado a sin planear.`);
@@ -93,6 +120,13 @@ export function PlaceSearchPanel({
     }
 
     setError(null);
+
+    const validationError = validateClassification();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     startAdding(async () => {
       const response = await addPlaceFromSearchAction(
         tripId,
@@ -102,7 +136,7 @@ export function PlaceSearchPanel({
           lat: pendingSelection.lat,
           lng: pendingSelection.lng,
         },
-        { forceDuplicate: true },
+        { forceDuplicate: true, priority, interest },
       );
 
       if (!response.ok) {
@@ -126,6 +160,17 @@ export function PlaceSearchPanel({
       title="Buscar lugar"
       subtitle="Búsqueda libre con Nominatim acotada al área del viaje. Elige el resultado correcto."
     >
+      <div className="mt-4">
+        <PlacePriorityInterestFields
+          priority={priority}
+          interest={interest}
+          onPriorityChange={setPriority}
+          onInterestChange={setInterest}
+          required
+          disabled={isBusy}
+        />
+      </div>
+
       <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3 sm:flex-row">
         <label className={cn(inputs.label, "flex-1")}>
           Nombre o dirección

@@ -2,6 +2,7 @@
 
 import { generatePlaceSuggestions, type PlaceSuggestion } from "@/lib/ai/suggest-places";
 import { addPlacesFromNames } from "@/lib/places/import-places";
+import { parsePlaceCreationMeta } from "@/lib/places/place-classification";
 import { loadSuggestionContext } from "@/lib/users/load-suggestion-context";
 import { buildSuggestionLocationParts } from "@/lib/users/suggestion-location";
 import { revalidateTripPaths } from "@/lib/trips/trip-paths";
@@ -49,6 +50,7 @@ export async function suggestPlacesAction(tripId: string): Promise<
 export async function addSelectedPlaceSuggestionsAction(
   tripId: string,
   selections: PlaceSuggestion[],
+  options?: { priority?: string; interest?: string },
 ): Promise<
   | {
       ok: true;
@@ -63,12 +65,22 @@ export async function addSelectedPlaceSuggestionsAction(
     return { ok: false, error: "Selecciona al menos un lugar." };
   }
 
+  const classification = parsePlaceCreationMeta({
+    priority: options?.priority,
+    interest: options?.interest,
+  });
+
+  if (!classification.ok) {
+    return { ok: false, error: classification.error };
+  }
+
   const result = await addPlacesFromNames(
     tripId,
     selections.map((selection) => ({
       name: selection.name,
       notes: selection.reason ? `Sugerencia IA: ${selection.reason}` : null,
     })),
+    classification.meta,
   );
 
   if (result.added.length > 0) {

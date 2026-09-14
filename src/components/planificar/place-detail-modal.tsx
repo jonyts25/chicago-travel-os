@@ -15,12 +15,14 @@ import { Button } from "@/components/ui/button";
 import { ErrorMessage } from "@/components/ui/error-message";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast-provider";
+import { PlacePriorityInterestFields } from "@/components/places/place-priority-interest-fields";
 import {
   PLACE_CATEGORIES,
-  PLACE_INTERESTS,
-  PLACE_PRIORITIES,
   type PlaceDetail,
+  type PlaceInterest,
+  type PlacePriority,
 } from "@/lib/places/place-detail";
+import { isPlaceInterest, isPlacePriority } from "@/lib/places/place-classification";
 import {
   formatCoordinates,
   timeInputToDbValue,
@@ -47,8 +49,8 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
-  const [priority, setPriority] = useState("");
-  const [interest, setInterest] = useState("");
+  const [priority, setPriority] = useState<PlacePriority | "">("");
+  const [interest, setInterest] = useState<PlaceInterest | "">("");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [notes, setNotes] = useState("");
   const [openingHours, setOpeningHours] = useState("");
@@ -92,8 +94,8 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
   function hydrateForm(detail: PlaceDetail) {
     setName(detail.name);
     setCategory(detail.category ?? "");
-    setPriority(detail.priority ?? "medium");
-    setInterest(detail.interest ?? "both");
+    setPriority(isPlacePriority(detail.priority) ? detail.priority : "");
+    setInterest(isPlaceInterest(detail.interest) ? detail.interest : "");
     setDurationMinutes(
       detail.duration_minutes != null ? String(detail.duration_minutes) : "",
     );
@@ -136,12 +138,22 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
         }
       }
 
+      if (!isPlacePriority(priority)) {
+        setError("Selecciona una prioridad.");
+        return;
+      }
+
+      if (!isPlaceInterest(interest)) {
+        setError("Selecciona para quién es el lugar.");
+        return;
+      }
+
       const result = await updatePlaceAction(tripId, {
         placeId,
         name,
         category: category || null,
-        priority: priority || null,
-        interest: interest || null,
+        priority,
+        interest,
         duration_minutes: parsedDuration,
         notes,
         reservation_required: reservationRequired,
@@ -278,36 +290,6 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
                 </select>
               </Field>
 
-              <Field label="Prioridad">
-                <select
-                  value={priority}
-                  onChange={(event) => setPriority(event.target.value)}
-                  className={inputs.base}
-                >
-                  {PLACE_PRIORITIES.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Interés">
-                <select
-                  value={interest}
-                  onChange={(event) => setInterest(event.target.value)}
-                  className={inputs.base}
-                >
-                  {PLACE_INTERESTS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
               <Field label="Duración (min)">
                 <input
                   type="number"
@@ -320,6 +302,15 @@ export function PlaceDetailModal({ tripId, placeId, days, onClose }: PlaceDetail
                 />
               </Field>
             </div>
+
+            <PlacePriorityInterestFields
+              priority={priority}
+              interest={interest}
+              onPriorityChange={setPriority}
+              onInterestChange={setInterest}
+              required
+              disabled={isPending}
+            />
 
             <Field label="Horario (texto libre)">
               <input
