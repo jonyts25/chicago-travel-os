@@ -1,4 +1,7 @@
-import type { OptimizerPlace } from "@/lib/itinerary/optimizer/types";
+import {
+  URBAN_TRAVEL_SPEED_KMH,
+  type OptimizerPlace,
+} from "@/lib/itinerary/optimizer/types";
 
 export type LatLng = { lat: number; lng: number };
 
@@ -14,6 +17,27 @@ export function haversineKm(a: LatLng, b: LatLng): number {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
 
   return 2 * earthRadiusKm * Math.asin(Math.sqrt(h));
+}
+
+/** Minutes to travel between two points at ~20 km/h urban mixed speed. */
+export function haversineTravelMinutes(a: LatLng, b: LatLng): number {
+  const km = haversineKm(a, b);
+  return Math.ceil((km / URBAN_TRAVEL_SPEED_KMH) * 60);
+}
+
+export function estimateRouteMinutesFromPlaces(places: OptimizerPlace[]): number {
+  if (places.length === 0) {
+    return 0;
+  }
+
+  const visitMinutes = places.reduce((sum, place) => sum + place.durationMinutes, 0);
+  let travelMinutes = 0;
+
+  for (let index = 0; index < places.length - 1; index += 1) {
+    travelMinutes += haversineTravelMinutes(places[index], places[index + 1]);
+  }
+
+  return visitMinutes + travelMinutes;
 }
 
 export function averageLatLng(points: LatLng[]): LatLng | null {
@@ -49,7 +73,6 @@ export function nearestNeighborOrder(
   let current: LatLng | null = startFrom;
 
   if (!current) {
-    remaining.sort((a, b) => a.priorityRank - b.priorityRank);
     const first = remaining.shift();
     if (!first) {
       return [];
@@ -65,11 +88,9 @@ export function nearestNeighborOrder(
     for (let index = 0; index < remaining.length; index += 1) {
       const candidate = remaining[index];
       const distance = haversineKm(current, candidate);
-      const priorityBias = candidate.priorityRank * 0.05;
-      const score = distance + priorityBias;
 
-      if (score < bestDistance) {
-        bestDistance = score;
+      if (distance < bestDistance) {
+        bestDistance = distance;
         bestIndex = index;
       }
     }

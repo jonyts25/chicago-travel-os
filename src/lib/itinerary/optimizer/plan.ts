@@ -1,19 +1,35 @@
 import {
-  TRAVEL_MINUTES_BETWEEN_STOPS,
-  type OptimizerDayContext,
-  type OptimizerInput,
-  type OptimizerPlace,
-  type OptimizerPlan,
-} from "@/lib/itinerary/optimizer/types";
+  comparePlacesForSelection,
+  canAddFoodPlace,
+  createDayMealState,
+  createInterestCounts,
+  getMealSlot,
+  isFoodCategory,
+  registerInterest,
+  registerMealAtSlot,
+  type DayMealState,
+  type InterestCounts,
+} from "@/lib/itinerary/optimizer/constraints";
 import {
   averageLatLng,
+  estimateRouteMinutesFromPlaces,
   haversineKm,
+  haversineTravelMinutes,
   kMeansClusterAssignments,
   nearestNeighborOrder,
 } from "@/lib/itinerary/optimizer/geo";
+import type {
+  OptimizerDayContext,
+  OptimizerInput,
+  OptimizerPlace,
+  OptimizerPlan,
+} from "@/lib/itinerary/optimizer/types";
 
 type MutableDayState = OptimizerDayContext & {
   assignedPlaces: OptimizerPlace[];
+  mealState: DayMealState;
+  interestCounts: InterestCounts;
+  globallyAssignedPlaceIds: Set<string>;
 };
 
 export function buildFullTripPlan(input: OptimizerInput): OptimizerPlan {
@@ -28,20 +44,14 @@ export function buildSingleDayPlan(
 }
 
 function buildPlanForDays(input: OptimizerInput, targetDayIds: string[]): OptimizerPlan {
-  const dayStates = input.days
+  const globallyAssignedPlaceIds = new Set(input.usedPlaceIds);
+
+  const dayStates: MutableDayState[] = input.days
     .filter((day) => targetDayIds.includes(day.dayId))
-    .map((day) => ({
-      ...day,
-      assignedPlaces: [] as OptimizerPlace[],
-    }));
+    .map((day) => initializeDayState(day, globallyAssignedPlaceIds));
 
   const unassignedDueToTime: string[] = [];
-  const pool = [...input.pool].sort((a, b) => {
-    if (a.priorityRank !== b.priorityRank) {
-      return a.priorityRank - b.priorityRank;
-    }
-    return a.durationMinutes - b.durationMinutes;
-  });
+  const pool = filterAndSortPool(input.pool, input.usedPlaceIds);
 
   if (pool.length === 0 || dayStates.length === 0) {
     return {
@@ -88,6 +98,42 @@ function buildPlanForDays(input: OptimizerInput, targetDayIds: string[]): Optimi
   return { dayPlans, unassignedDueToTime };
 }
 
+function initializeDayState(
+  day: OptimizerDayContext,
+  globallyAssignedPlaceIds: Set<string>,
+): MutableDayState {
+  const mealState = createDayMealState();
+  const interestCounts = createInterestCounts();
+
+  for (const place of day.lockedPlaces) {
+    globallyAssignedPlaceIds.add(place.id);
+    registerInterest(interestCounts, place.interest);
+
+    if (isFoodCategory(place.category)) {
+      registerMealAtSlot(mealState, getMealSlot(day.dayStartMinutes));
+    }
+  }
+
+  return {
+    ...day,
+    assignedPlaces: [],
+    mealState,
+    interestCounts,
+    globallyAssignedPlaceIds,
+  };
+}
+
+function filterAndSortPool(
+  pool: OptimizerPlace[],
+  usedPlaceIds: ReadonlySet<string>,
+): OptimizerPlace[] {
+  const interestCounts = createInterestCounts();
+
+  return pool
+    .filter((place) => !usedPlaceIds.has(place.id))
+    .sort((a, b) => comparePlacesForSelection(a, b, interestCounts));
+}
+
 function assignFocusCategoryPlaces(
   dayStates: MutableDayState[],
   pool: OptimizerPlace[],
@@ -103,25 +149,18 @@ function assignFocusCategoryPlaces(
     const matchingPlaces = pool
       .filter(
         (place) =>
-          remainingIds.has(place.id) && place.category === day.focusCategory,
+          remainingIds.has(place.id) &&
+          !day.globallyAssignedPlaceIds.has(place.id) &&
+          place.category === day.focusCategory,
       )
-      .sort((a, b) => {
-        if (a.priorityRank !== b.priorityRank) {
-          return a.priorityRank - b.priorityRank;
-        }
-
-        const distanceA = day.centroid ? haversineKm(a, day.centroid) : 9999;
-        const distanceB = day.centroid ? haversineKm(b, day.centroid) : 9999;
-        return distanceA - distanceB;
-      });
+      .sort((a, b) => comparePlacesForSelection(a, b, day.interestCounts));
 
     for (const place of matchingPlaces) {
-      if (!remainingIds.has(place.id)) {
+      if (!remainingIds.has(place.id) || day.globallyAssignedPlaceIds.has(place.id)) {
         continue;
       }
 
-      if (canAddPlace(day, place)) {
-        addPlaceToDay(day, place);
+      if (tryAddPlaceToDay(day, place)) {
         remainingIds.delete(place.id);
       } else if (place.priorityRank <= 2) {
         unassignedDueToTime.push(place.id);
@@ -138,10 +177,14 @@ function assignPlacesAcrossDays(
   pool: OptimizerPlace[],
   unassignedDueToTime: string[],
 ): void {
-  const clusterAssignments = kMeansClusterAssignments(pool, dayStates.length);
+  const availablePool = pool.filter((place) =>
+    dayStates.every((day) => !day.globallyAssignedPlaceIds.has(place.id)),
+  );
+
+  const clusterAssignments = kMeansClusterAssignments(availablePool, dayStates.length);
   const clusters = new Map<number, OptimizerPlace[]>();
 
-  pool.forEach((place, index) => {
+  availablePool.forEach((place, index) => {
     const clusterIndex = clusterAssignments[index];
     const cluster = clusters.get(clusterIndex) ?? [];
     cluster.push(place);
@@ -154,7 +197,7 @@ function assignPlacesAcrossDays(
       places,
       centroid: averageLatLng(places),
       bestPriority: Math.min(...places.map((place) => place.priorityRank)),
-      totalMinutes: estimateRouteMinutes(places),
+      totalMinutes: estimateRouteMinutesFromPlaces(places),
     }))
     .sort((a, b) => {
       if (a.bestPriority !== b.bestPriority) {
@@ -163,12 +206,19 @@ function assignPlacesAcrossDays(
       return b.totalMinutes - a.totalMinutes;
     });
 
-  const remaining = new Set(pool.map((place) => place.id));
+  const remaining = new Set(availablePool.map((place) => place.id));
 
   for (const cluster of clusterEntries) {
     const targetDay = pickDayForCluster(dayStates, cluster.centroid, cluster.totalMinutes);
 
-    if (targetDay && cluster.places.every((place) => canAddPlace(targetDay, place))) {
+    if (
+      targetDay &&
+      cluster.places.every(
+        (place) =>
+          !targetDay.globallyAssignedPlaceIds.has(place.id) &&
+          canAddPlace(targetDay, place),
+      )
+    ) {
       for (const place of cluster.places) {
         addPlaceToDay(targetDay, place);
         remaining.delete(place.id);
@@ -177,10 +227,9 @@ function assignPlacesAcrossDays(
     }
 
     const sortedPlaces = [...cluster.places].sort((a, b) => {
-      if (a.priorityRank !== b.priorityRank) {
-        return a.priorityRank - b.priorityRank;
-      }
-      return a.durationMinutes - b.durationMinutes;
+      const day = pickDayForPlace(dayStates, a) ?? pickDayForPlace(dayStates, b);
+      const interestCounts = day?.interestCounts ?? createInterestCounts();
+      return comparePlacesForSelection(a, b, interestCounts);
     });
 
     for (const place of sortedPlaces) {
@@ -189,8 +238,7 @@ function assignPlacesAcrossDays(
       }
 
       const day = pickDayForPlace(dayStates, place);
-      if (day && canAddPlace(day, place)) {
-        addPlaceToDay(day, place);
+      if (day && tryAddPlaceToDay(day, place)) {
         remaining.delete(place.id);
       } else if (place.priorityRank <= 2) {
         unassignedDueToTime.push(place.id);
@@ -200,15 +248,14 @@ function assignPlacesAcrossDays(
   }
 
   for (const placeId of remaining) {
-    const place = pool.find((candidate) => candidate.id === placeId);
+    const place = availablePool.find((candidate) => candidate.id === placeId);
     if (!place) {
       continue;
     }
 
     if (place.priorityRank >= 3) {
       const day = pickDayForPlace(dayStates, place);
-      if (day && canAddPlace(day, place)) {
-        addPlaceToDay(day, place);
+      if (day && tryAddPlaceToDay(day, place)) {
         continue;
       }
     }
@@ -222,30 +269,27 @@ function assignPlacesToSingleDay(
   pool: OptimizerPlace[],
   unassignedDueToTime: string[],
 ): void {
-  const sortedPool = [...pool].sort((a, b) => {
-    const aMatchesFocus =
-      dayState.focusCategory && a.category === dayState.focusCategory ? 0 : 1;
-    const bMatchesFocus =
-      dayState.focusCategory && b.category === dayState.focusCategory ? 0 : 1;
+  const sortedPool = [...pool]
+    .filter((place) => !dayState.globallyAssignedPlaceIds.has(place.id))
+    .sort((a, b) => {
+      const aMatchesFocus =
+        dayState.focusCategory && a.category === dayState.focusCategory ? 0 : 1;
+      const bMatchesFocus =
+        dayState.focusCategory && b.category === dayState.focusCategory ? 0 : 1;
 
-    if (aMatchesFocus !== bMatchesFocus) {
-      return aMatchesFocus - bMatchesFocus;
-    }
+      if (aMatchesFocus !== bMatchesFocus) {
+        return aMatchesFocus - bMatchesFocus;
+      }
 
-    if (a.priorityRank !== b.priorityRank) {
-      return a.priorityRank - b.priorityRank;
-    }
-    return a.durationMinutes - b.durationMinutes;
-  });
+      return comparePlacesForSelection(a, b, dayState.interestCounts);
+    });
 
   for (const place of sortedPool) {
-    if (canAddPlace(dayState, place)) {
-      addPlaceToDay(dayState, place);
-    } else if (place.priorityRank <= 2) {
-      unassignedDueToTime.push(place.id);
-    } else {
-      unassignedDueToTime.push(place.id);
+    if (tryAddPlaceToDay(dayState, place)) {
+      continue;
     }
+
+    unassignedDueToTime.push(place.id);
   }
 }
 
@@ -281,6 +325,13 @@ function pickDayForPlace(
         if (distanceA !== distanceB) {
           return distanceA - distanceB;
         }
+
+        const interestA = a.interestCounts[place.interest];
+        const interestB = b.interestCounts[place.interest];
+        if (interestA !== interestB) {
+          return interestA - interestB;
+        }
+
         return remainingMinutes(b) - remainingMinutes(a);
       })[0] ?? null
   );
@@ -299,37 +350,84 @@ function orderPlacesForDay(day: MutableDayState): OptimizerPlace[] {
   return nearestNeighborOrder(day.assignedPlaces, startFrom);
 }
 
+function tryAddPlaceToDay(day: MutableDayState, place: OptimizerPlace): boolean {
+  if (day.globallyAssignedPlaceIds.has(place.id)) {
+    return false;
+  }
+
+  if (!canAddPlace(day, place)) {
+    return false;
+  }
+
+  addPlaceToDay(day, place);
+  return true;
+}
+
 function addPlaceToDay(day: MutableDayState, place: OptimizerPlace): void {
   day.assignedPlaces.push(place);
-  day.usedMinutes = estimateRouteMinutes([...day.lockedPlaces, ...day.assignedPlaces]);
-  day.centroid = averageLatLng([...day.lockedPlaces, ...day.assignedPlaces]);
+  day.globallyAssignedPlaceIds.add(place.id);
+  registerInterest(day.interestCounts, place.interest);
+
+  if (isFoodCategory(place.category)) {
+    registerMealAtSlot(
+      day.mealState,
+      getMealSlot(estimateNextPlaceStartMinutes(day, place)),
+    );
+  }
+
+  const allPlaces = [...day.lockedPlaces, ...day.assignedPlaces];
+  day.usedMinutes = estimateRouteMinutesFromPlaces(allPlaces);
+  day.centroid = averageLatLng(allPlaces);
 }
 
 function canAddPlace(day: MutableDayState, place: OptimizerPlace): boolean {
+  if (day.globallyAssignedPlaceIds.has(place.id)) {
+    return false;
+  }
+
   const nextPlaces = [...day.lockedPlaces, ...day.assignedPlaces, place];
-  return estimateRouteMinutes(nextPlaces) <= day.dayActiveMinutesLimit;
+  if (estimateRouteMinutesFromPlaces(nextPlaces) > day.dayActiveMinutesLimit) {
+    return false;
+  }
+
+  if (isFoodCategory(place.category)) {
+    const estimatedStart = estimateNextPlaceStartMinutes(day, place);
+    if (!canAddFoodPlace(day.mealState, estimatedStart)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function estimateNextPlaceStartMinutes(
+  day: MutableDayState,
+  place: OptimizerPlace,
+): number {
+  const routeSoFar = [...day.lockedPlaces, ...day.assignedPlaces];
+  if (routeSoFar.length === 0) {
+    return day.dayStartMinutes;
+  }
+
+  const travelMinutes = haversineTravelMinutes(
+    routeSoFar[routeSoFar.length - 1],
+    place,
+  );
+
+  return day.dayStartMinutes + day.usedMinutes + travelMinutes;
 }
 
 function remainingMinutes(day: MutableDayState): number {
   return day.dayActiveMinutesLimit - day.usedMinutes;
 }
 
-function estimateRouteMinutes(places: OptimizerPlace[]): number {
-  if (places.length === 0) {
-    return 0;
-  }
-
-  const visitMinutes = places.reduce((sum, place) => sum + place.durationMinutes, 0);
-  const travelMinutes = Math.max(0, places.length - 1) * TRAVEL_MINUTES_BETWEEN_STOPS;
-  return visitMinutes + travelMinutes;
-}
-
+/** @deprecated Use estimateRouteMinutesFromPlaces when coordinates are available. */
 export function estimateRouteMinutesFromDurations(durations: number[]): number {
   if (durations.length === 0) {
     return 0;
   }
 
   const visitMinutes = durations.reduce((sum, duration) => sum + duration, 0);
-  const travelMinutes = Math.max(0, durations.length - 1) * TRAVEL_MINUTES_BETWEEN_STOPS;
+  const travelMinutes = Math.max(0, durations.length - 1) * 20;
   return visitMinutes + travelMinutes;
 }

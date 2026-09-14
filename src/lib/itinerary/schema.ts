@@ -25,6 +25,7 @@ export type ItineraryItem = {
   is_fixed: boolean | null;
   start_time: string | null;
   end_time: string | null;
+  travel_time_to_next_minutes: number | null;
   status: ItineraryItemStatus | null;
 };
 

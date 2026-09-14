@@ -5,6 +5,8 @@ import {
   parseTimeToMinutes,
   type DayScheduleItemInput,
 } from "@/lib/itinerary/schedule-day";
+import { haversineTravelMinutes } from "@/lib/itinerary/optimizer/geo";
+import { hasCoordinates } from "@/lib/places/schema";
 import { loadDayEndWarningMinutes, loadDayStartMinutes } from "@/lib/itinerary/load-day-constraints";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,8 +15,37 @@ type ScheduleItemRow = {
   order_index: number;
   is_fixed: boolean | null;
   start_time: string | null;
-  places: { duration_minutes: number | null } | { duration_minutes: number | null }[] | null;
+  places:
+    | { duration_minutes: number | null; lat: number | null; lng: number | null }
+    | { duration_minutes: number | null; lat: number | null; lng: number | null }[]
+    | null;
 };
+
+function normalizePlaceJoin(
+  value: ScheduleItemRow["places"],
+): { duration_minutes: number | null; lat: number | null; lng: number | null } | null {
+  if (!value) {
+    return null;
+  }
+
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function computeTravelMinutesToNext(
+  currentPlace: ReturnType<typeof normalizePlaceJoin>,
+  nextPlace: ReturnType<typeof normalizePlaceJoin>,
+): number | null {
+  if (
+    !currentPlace ||
+    !nextPlace ||
+    !hasCoordinates(currentPlace) ||
+    !hasCoordinates(nextPlace)
+  ) {
+    return null;
+  }
+
+  return haversineTravelMinutes(currentPlace, nextPlace);
+}
 
 export async function recalculateDaySchedule(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -23,7 +54,9 @@ export async function recalculateDaySchedule(
 ): Promise<{ ok: boolean; error?: string; warnings: string[] }> {
   const { data: rows, error: fetchError } = await supabase
     .from("itinerary_items")
-    .select("id, order_index, is_fixed, start_time, places ( duration_minutes )")
+    .select(
+      "id, order_index, is_fixed, start_time, places ( duration_minutes, lat, lng )",
+    )
     .eq("itinerary_day_id", itineraryDayId)
     .order("order_index", { ascending: true });
 
@@ -32,9 +65,10 @@ export async function recalculateDaySchedule(
   }
 
   const itemRows = (rows ?? []) as ScheduleItemRow[];
+  const placeByRow = itemRows.map((row) => normalizePlaceJoin(row.places));
 
-  const items = itemRows.map((row): DayScheduleItemInput => {
-    const place = Array.isArray(row.places) ? row.places[0] : row.places;
+  const items = itemRows.map((row, index): DayScheduleItemInput => {
+    const place = placeByRow[index];
 
     return {
       id: row.id,
@@ -42,6 +76,10 @@ export async function recalculateDaySchedule(
       durationMinutes: defaultDurationMinutes(place?.duration_minutes),
       isFixed: Boolean(row.is_fixed),
       fixedStartTime: row.is_fixed ? row.start_time : null,
+      travelMinutesToNext:
+        index < itemRows.length - 1
+          ? computeTravelMinutesToNext(place, placeByRow[index + 1])
+          : null,
     };
   });
 
@@ -51,8 +89,13 @@ export async function recalculateDaySchedule(
   });
   const durationById = new Map(items.map((item) => [item.id, item.durationMinutes]));
 
-  for (const schedule of schedules) {
-    const row = itemRows.find((item) => item.id === schedule.id);
+  for (let index = 0; index < itemRows.length; index += 1) {
+    const row = itemRows[index];
+    const schedule = schedules.find((entry) => entry.id === row.id);
+    if (!schedule) {
+      continue;
+    }
+
     const isFixed = Boolean(row?.is_fixed && row.start_time);
     const durationMinutes = durationById.get(schedule.id) ?? defaultDurationMinutes(null);
 
@@ -64,11 +107,15 @@ export async function recalculateDaySchedule(
       ? (parseTimeToMinutes(row!.start_time!) ?? schedule.startMinutes) + durationMinutes
       : schedule.endMinutes;
 
+    const travelTimeToNext =
+      index < items.length ? (items[index].travelMinutesToNext ?? null) : null;
+
     const { error } = await supabase
       .from("itinerary_items")
       .update({
         start_time: startTime,
         end_time: minutesToTimeValue(endMinutes),
+        travel_time_to_next_minutes: travelTimeToNext,
       })
       .eq("id", schedule.id);
 

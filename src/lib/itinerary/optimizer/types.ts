@@ -1,5 +1,10 @@
+import type { PlaceInterest } from "@/lib/places/place-detail";
+
 export const DEFAULT_DAY_ACTIVE_MINUTES = 8 * 60;
+/** Fallback when coordinates are unavailable during scheduling. */
 export const TRAVEL_MINUTES_BETWEEN_STOPS = 20;
+/** Conservative urban mixed walk/transit speed for Haversine travel estimates. */
+export const URBAN_TRAVEL_SPEED_KMH = 20;
 export const DEFAULT_VISIT_MINUTES = 60;
 
 export type PlacePriority = "must" | "high" | "medium" | "if_time";
@@ -25,6 +30,7 @@ export type OptimizerPlace = {
   lng: number;
   durationMinutes: number;
   priorityRank: number;
+  interest: PlaceInterest;
   category: string | null;
 };
 
@@ -36,6 +42,7 @@ export type OptimizerDayContext = {
   usedMinutes: number;
   centroid: { lat: number; lng: number } | null;
   dayActiveMinutesLimit: number;
+  dayStartMinutes: number;
   focusCategory: string | null;
   focusLabel: string | null;
 };
@@ -43,6 +50,8 @@ export type OptimizerDayContext = {
 export type OptimizerInput = {
   days: OptimizerDayContext[];
   pool: OptimizerPlace[];
+  /** place_ids already present in any day of the trip — never assign twice. */
+  usedPlaceIds: ReadonlySet<string>;
 };
 
 export type OptimizerDayPlan = {

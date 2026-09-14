@@ -8,13 +8,22 @@ import {
   type ItineraryDayConstraintsInput,
   type TripDayConstraintsInput,
 } from "@/lib/itinerary/day-constraints";
+import { normalizePlaceInterest } from "@/lib/itinerary/optimizer/constraints";
 import {
   buildFullTripPlan,
   buildSingleDayPlan,
-  estimateRouteMinutesFromDurations,
 } from "@/lib/itinerary/optimizer/plan";
 import { recalculateDaySchedule } from "@/lib/itinerary/recalculate-day-schedule";
-import { averageLatLng } from "@/lib/itinerary/optimizer/geo";
+import {
+  averageLatLng,
+  estimateRouteMinutesFromPlaces,
+  haversineKm,
+} from "@/lib/itinerary/optimizer/geo";
+import {
+  hasTripGeocodingCenter,
+  normalizeTripGeocodingContext,
+  TRIP_GEOCODING_SELECT,
+} from "@/lib/geocoding/trip-geocoding-context";
 import {
   DEFAULT_VISIT_MINUTES,
   normalizePriorityRank,
@@ -33,6 +42,7 @@ type PlaceRow = {
   lng: number | null;
   duration_minutes: number | null;
   priority: string | null;
+  interest: string | null;
   status: string;
   category: string | null;
 };
@@ -57,6 +67,7 @@ function toOptimizerPlace(row: PlaceRow): OptimizerPlace | null {
     lng: row.lng,
     durationMinutes: row.duration_minutes ?? DEFAULT_VISIT_MINUTES,
     priorityRank: normalizePriorityRank(row.priority),
+    interest: normalizePlaceInterest(row.interest),
     category: row.category,
   };
 }
@@ -78,6 +89,7 @@ export async function runFullItineraryOptimizer(tripId: string): Promise<Optimiz
   const plan = buildFullTripPlan({
     days: context.dayContexts,
     pool: context.pool,
+    usedPlaceIds: context.usedPlaceIds,
   });
 
   return applyOptimizerPlan(plan, context, tripId, "append");
@@ -197,6 +209,7 @@ export async function runSingleDayItineraryOptimizer(
     {
       days: [refreshedDay],
       pool: refreshed.pool,
+      usedPlaceIds: refreshed.usedPlaceIds,
     },
     itineraryDayId,
   );
@@ -208,7 +221,9 @@ type LoadedOptimizerContext = {
   ok: true;
   dayContexts: OptimizerDayContext[];
   pool: OptimizerPlace[];
+  usedPlaceIds: Set<string>;
   withoutCoordinates: number;
+  excludedOutsideRadius: number;
   maxOrderByDay: Map<string, number>;
   fixedCountByDay: Map<string, number>;
 };
@@ -256,17 +271,23 @@ async function loadOptimizerContext(tripId: string): Promise<
   const [placesResult, itemsResult, tripResult] = await Promise.all([
     supabase
       .from("places")
-      .select("id, name, lat, lng, duration_minutes, priority, status, category")
+      .select(
+        "id, name, lat, lng, duration_minutes, priority, interest, status, category",
+      )
       .eq("trip_id", tripId),
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
           .select(
-            "id, itinerary_day_id, place_id, order_index, is_fixed, places ( id, name, lat, lng, duration_minutes, priority, status, category )",
+            "id, itinerary_day_id, place_id, order_index, is_fixed, places ( id, name, lat, lng, duration_minutes, priority, interest, status, category )",
           )
           .in("itinerary_day_id", dayIds)
       : Promise.resolve({ data: [], error: null }),
-    supabase.from("trips").select(TRIP_TRAVEL_SELECT).eq("id", tripId).maybeSingle(),
+    supabase
+      .from("trips")
+      .select(`${TRIP_TRAVEL_SELECT}, ${TRIP_GEOCODING_SELECT}`)
+      .eq("id", tripId)
+      .maybeSingle(),
   ]);
 
   if (placesResult.error) {
@@ -311,6 +332,8 @@ async function loadOptimizerContext(tripId: string): Promise<
     };
   }
 
+  const tripGeo = normalizeTripGeocodingContext(tripResult.data);
+
   const tripConstraints: TripDayConstraintsInput = {
     timezone: tripResult.data?.timezone ?? null,
     flightArrival: tripResult.data?.flight_arrival ?? null,
@@ -330,9 +353,28 @@ async function loadOptimizerContext(tripId: string): Promise<
   const unplannedPlaces = allPlaces.filter((place) => place.status === PLACE_STATUS_UNPLANNED);
   const withoutCoordinates = unplannedPlaces.filter((place) => !hasCoordinates(place)).length;
 
-  const pool = unplannedPlaces
+  const usedPlaceIds = new Set<string>();
+  for (const row of (itemsResult.data ?? []) as ItemRow[]) {
+    usedPlaceIds.add(row.place_id);
+  }
+
+  let pool = unplannedPlaces
     .map(toOptimizerPlace)
-    .filter((place): place is OptimizerPlace => place !== null);
+    .filter((place): place is OptimizerPlace => place !== null)
+    .filter((place) => !usedPlaceIds.has(place.id));
+
+  let excludedOutsideRadius = 0;
+  if (hasTripGeocodingCenter(tripGeo)) {
+    const beforeRadius = pool.length;
+    pool = pool.filter(
+      (place) =>
+        haversineKm(place, {
+          lat: tripGeo.center_lat,
+          lng: tripGeo.center_lng,
+        }) <= tripGeo.search_radius_km,
+    );
+    excludedOutsideRadius = beforeRadius - pool.length;
+  }
 
   const itemsByDay = new Map<string, ItemRow[]>();
   for (const row of (itemsResult.data ?? []) as ItemRow[]) {
@@ -368,9 +410,7 @@ async function loadOptimizerContext(tripId: string): Promise<
       dayItems.reduce((max, item) => Math.max(max, item.order_index), -1),
     );
 
-    const usedMinutes = estimateRouteMinutesFromDurations(
-      lockedPlaces.map((place) => place.durationMinutes),
-    );
+    const usedMinutes = estimateRouteMinutesFromPlaces(lockedPlaces);
 
     const resolved = resolveDayConstraints(
       {
@@ -392,6 +432,7 @@ async function loadOptimizerContext(tripId: string): Promise<
       usedMinutes,
       centroid: averageLatLng(lockedPlaces),
       dayActiveMinutesLimit: resolved.dayActiveMinutesLimit,
+      dayStartMinutes: resolved.dayStartMinutes,
       focusCategory: resolved.focusCategory,
       focusLabel: resolved.focusLabel,
     };
@@ -401,7 +442,9 @@ async function loadOptimizerContext(tripId: string): Promise<
     ok: true,
     dayContexts,
     pool,
+    usedPlaceIds,
     withoutCoordinates,
+    excludedOutsideRadius,
     maxOrderByDay,
     fixedCountByDay,
   };
@@ -484,6 +527,12 @@ async function applyOptimizerPlan(
   if (context.withoutCoordinates > 0) {
     warnings.push(
       `${context.withoutCoordinates} lugar(es) sin coordenadas quedaron fuera del optimizador.`,
+    );
+  }
+
+  if (context.excludedOutsideRadius > 0) {
+    warnings.push(
+      `${context.excludedOutsideRadius} lugar(es) quedaron fuera por estar más allá del radio del viaje.`,
     );
   }
 
