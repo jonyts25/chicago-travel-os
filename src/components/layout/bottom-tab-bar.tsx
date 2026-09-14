@@ -94,8 +94,7 @@ export function BottomTabBar() {
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      className="fixed inset-x-0 bottom-0 z-40 isolate border-t border-slate-800 bg-slate-950/95 backdrop-blur"
     >
       <ul
         className={cn(
@@ -109,17 +108,19 @@ export function BottomTabBar() {
           );
 
           return (
-            <li key={tab.href}>
+            <li key={tab.href} className="flex min-w-0">
               <Link
                 href={tab.href}
                 className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-1 px-0.5 py-2 font-medium transition",
+                  "flex w-full min-h-[calc(3rem+env(safe-area-inset-bottom,0px))] flex-col items-center justify-center gap-1 px-1 pt-2 pb-[env(safe-area-inset-bottom,0px)] font-medium touch-manipulation select-none transition [-webkit-tap-highlight-color:transparent]",
                   scheduled ? "text-[10px]" : "text-[11px]",
                   active ? "text-blue-400" : "text-slate-500 hover:text-slate-300",
                 )}
               >
-                {tab.icon(active)}
-                <span>{tab.label}</span>
+                <span className="pointer-events-none flex shrink-0 items-center justify-center">
+                  {tab.icon(active)}
+                </span>
+                <span className="pointer-events-none leading-none">{tab.label}</span>
               </Link>
             </li>
           );
