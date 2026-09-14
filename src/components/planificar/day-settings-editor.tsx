@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateItineraryDaySettingsAction } from "@/app/planificar/actions";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast-provider";
 import {
   formatDayEndMinutes,
   formatDayEndSourceLabel,
+  formatFocusCategoryHint,
   fromTimeInputValue,
   resolveFocusCategory,
   toTimeInputValue,
@@ -19,10 +20,16 @@ import { cn, inputs, surfaces, typography } from "@/lib/ui/styles";
 type DaySettingsEditorProps = {
   tripId: string;
   day: PlanningDay;
+  tripPlaceCategories: string[];
   disabled?: boolean;
 };
 
-export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettingsEditorProps) {
+export function DaySettingsEditor({
+  tripId,
+  day,
+  tripPlaceCategories,
+  disabled = false,
+}: DaySettingsEditorProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [focus, setFocus] = useState(day.focus ?? "");
@@ -37,8 +44,20 @@ export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettings
     setDayEndOverride(toTimeInputValue(day.day_end_override));
   }, [day.id, day.focus, day.day_end_override]);
 
-  const focusCategory = resolveFocusCategory(focus.trim() || null);
+  const categoryOptions = useMemo(() => {
+    const values = new Set(tripPlaceCategories);
+    if (day.focus_category) {
+      values.add(day.focus_category);
+    }
+    return Array.from(values).sort((a, b) => a.localeCompare(b, "es"));
+  }, [day.focus_category, tripPlaceCategories]);
+
+  const focusCategory = resolveFocusCategory(focus.trim() || null, tripPlaceCategories);
+  const focusHint = formatFocusCategoryHint(focus.trim() || null, tripPlaceCategories);
   const effectiveEndMinutes = day.day_end_minutes;
+  const isDirty =
+    focus !== (day.focus ?? "") ||
+    dayEndOverride !== toTimeInputValue(day.day_end_override);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,7 +76,11 @@ export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettings
         return;
       }
 
-      showToast(`Día ${day.day_number} actualizado`);
+      showToast(
+        result.warning
+          ? `Día ${day.day_number} guardado (${result.warning})`
+          : `Día ${day.day_number} actualizado`,
+      );
       router.refresh();
     });
   }
@@ -70,8 +93,8 @@ export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettings
       <div>
         <p className={typography.sectionTitle}>Enfoque del día</p>
         <p className={typography.secondary}>
-          Escribe una categoría (ej. compras) o una etiqueta libre. Si coincide con una
-          categoría, el optimizador prioriza esos lugares ese día.
+          Elige una categoría real del viaje o escribe una variante (ej. museos → Museo).
+          El optimizador prioriza esos lugares al generar o regenerar este día.
         </p>
       </div>
 
@@ -80,19 +103,45 @@ export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettings
         <input
           id={`focus-${day.id}`}
           type="text"
+          list={`focus-categories-${day.id}`}
           value={focus}
           onChange={(event) => setFocus(event.target.value)}
-          placeholder='Ej. compras, museos, "medio día - salida"'
+          placeholder="Ej. Museo, museos, Restaurante"
           className={inputs.base}
           disabled={disabled || isPending}
         />
       </label>
 
+      <datalist id={`focus-categories-${day.id}`}>
+        {categoryOptions.map((category) => (
+          <option key={category} value={category} />
+        ))}
+      </datalist>
+
+      {categoryOptions.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {categoryOptions.map((category) => (
+            <button
+              key={category}
+              type="button"
+              disabled={disabled || isPending}
+              onClick={() => setFocus(category)}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                focus === category
+                  ? "border-blue-400 bg-blue-500/20 text-blue-100"
+                  : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500",
+              )}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {focus.trim() ? (
-        <p className={typography.muted}>
-          {focusCategory
-            ? `Categoría detectada: ${focusCategory} (prioridad en el optimizador).`
-            : "Etiqueta informativa — no coincide con una categoría conocida."}
+        <p className={cn(typography.muted, focusCategory ? "text-emerald-300/90" : "")}>
+          {focusHint}
         </p>
       ) : null}
 
@@ -120,8 +169,15 @@ export function DaySettingsEditor({ tripId, day, disabled = false }: DaySettings
         />
       ) : null}
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={disabled} loading={isPending}>
+      <div className="flex items-center justify-between gap-3">
+        {isDirty ? (
+          <p className={cn(typography.muted, "text-amber-200/90")}>
+            Cambios sin guardar — pulsa Guardar día para persistir el focus.
+          </p>
+        ) : (
+          <span />
+        )}
+        <Button type="submit" disabled={disabled || !isDirty} loading={isPending}>
           Guardar día
         </Button>
       </div>

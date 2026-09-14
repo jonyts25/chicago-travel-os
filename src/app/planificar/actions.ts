@@ -17,6 +17,7 @@ import { revalidatePath } from "next/cache";
 export type PlanningActionResult = {
   ok: boolean;
   error?: string;
+  warning?: string;
 };
 
 function revalidatePlanningViews(tripId: string): void {
@@ -446,11 +447,29 @@ export async function updateItineraryDaySettingsAction(
     return { ok: false, error: updateError.message };
   }
 
-  const scheduleResult = await recalculateDaySchedule(supabase, tripId, itineraryDayId);
-  if (!scheduleResult.ok) {
-    return { ok: false, error: scheduleResult.error };
+  const { data: dayItems, error: itemsError } = await supabase
+    .from("itinerary_items")
+    .select("id")
+    .eq("itinerary_day_id", itineraryDayId)
+    .limit(1);
+
+  if (itemsError) {
+    return { ok: false, error: itemsError.message };
   }
 
   revalidatePlanningViews(tripId);
-  return { ok: true };
+
+  if (!dayItems?.length) {
+    return { ok: true };
+  }
+
+  const scheduleResult = await recalculateDaySchedule(supabase, tripId, itineraryDayId);
+  if (!scheduleResult.ok) {
+    return {
+      ok: true,
+      warning: scheduleResult.error ?? "No se pudieron recalcular horarios.",
+    };
+  }
+
+  return { ok: true, warning: scheduleResult.warnings[0] };
 }

@@ -17,6 +17,7 @@ import {
   haversineTravelMinutes,
   kMeansClusterAssignments,
   nearestNeighborOrder,
+  type LatLng,
 } from "@/lib/itinerary/optimizer/geo";
 import type {
   OptimizerDayContext,
@@ -27,6 +28,8 @@ import type {
 
 type MutableDayState = OptimizerDayContext & {
   assignedPlaces: OptimizerPlace[];
+  assignedFocusPlaces: OptimizerPlace[];
+  assignedFillerPlaces: OptimizerPlace[];
   mealState: DayMealState;
   interestCounts: InterestCounts;
   globallyAssignedPlaceIds: Set<string>;
@@ -51,42 +54,36 @@ function buildPlanForDays(input: OptimizerInput, targetDayIds: string[]): Optimi
     .map((day) => initializeDayState(day, globallyAssignedPlaceIds));
 
   const unassignedDueToTime: string[] = [];
-  const pool = filterAndSortPool(input.pool, input.usedPlaceIds);
+  const unassignedFocusDueToTime: string[] = [];
+  let remainingPool = filterAndSortPool(input.pool, input.usedPlaceIds);
 
-  if (pool.length === 0 || dayStates.length === 0) {
-    return {
-      dayPlans: dayStates.map((day) => ({
-        dayId: day.dayId,
-        dayNumber: day.dayNumber,
-        orderedPlaceIds: [],
-      })),
-      unassignedDueToTime,
-    };
+  if (remainingPool.length === 0 && dayStates.every((day) => day.assignedPlaces.length === 0)) {
+    return emptyPlan(dayStates, unassignedDueToTime, unassignedFocusDueToTime);
   }
 
-  let remainingPool = pool;
+  const focusedDays = dayStates
+    .filter((day) => day.focusCategory)
+    .sort((a, b) => a.dayNumber - b.dayNumber);
 
-  if (dayStates.length > 1) {
-    remainingPool = assignFocusCategoryPlaces(dayStates, remainingPool, unassignedDueToTime);
-  } else if (dayStates[0]?.focusCategory) {
-    remainingPool = assignFocusCategoryPlaces(dayStates, remainingPool, unassignedDueToTime);
+  for (const day of focusedDays) {
+    remainingPool = assignPlacesToFocusedDay(
+      day,
+      remainingPool,
+      unassignedFocusDueToTime,
+    );
   }
 
-  if (remainingPool.length === 0) {
-    return {
-      dayPlans: dayStates.map((day) => ({
-        dayId: day.dayId,
-        dayNumber: day.dayNumber,
-        orderedPlaceIds: orderPlacesForDay(day).map((place) => place.id),
-      })),
-      unassignedDueToTime,
-    };
-  }
+  const focusOnlyRun =
+    dayStates.length === 1 && focusedDays.length === 1 && remainingPool.length === 0;
 
-  if (dayStates.length === 1) {
-    assignPlacesToSingleDay(dayStates[0], remainingPool, unassignedDueToTime);
-  } else {
-    assignPlacesAcrossDays(dayStates, remainingPool, unassignedDueToTime);
+  if (!focusOnlyRun && remainingPool.length > 0) {
+    const openDays = dayStates.filter((day) => remainingMinutes(day) > 0);
+
+    if (openDays.length === 1) {
+      assignPlacesToGeneralDay(openDays[0], remainingPool, unassignedDueToTime);
+    } else if (openDays.length > 1) {
+      assignPlacesAcrossDays(openDays, remainingPool, unassignedDueToTime);
+    }
   }
 
   const dayPlans = dayStates.map((day) => ({
@@ -95,7 +92,23 @@ function buildPlanForDays(input: OptimizerInput, targetDayIds: string[]): Optimi
     orderedPlaceIds: orderPlacesForDay(day).map((place) => place.id),
   }));
 
-  return { dayPlans, unassignedDueToTime };
+  return { dayPlans, unassignedDueToTime, unassignedFocusDueToTime };
+}
+
+function emptyPlan(
+  dayStates: MutableDayState[],
+  unassignedDueToTime: string[],
+  unassignedFocusDueToTime: string[],
+): OptimizerPlan {
+  return {
+    dayPlans: dayStates.map((day) => ({
+      dayId: day.dayId,
+      dayNumber: day.dayNumber,
+      orderedPlaceIds: [],
+    })),
+    unassignedDueToTime,
+    unassignedFocusDueToTime,
+  };
 }
 
 function initializeDayState(
@@ -117,6 +130,8 @@ function initializeDayState(
   return {
     ...day,
     assignedPlaces: [],
+    assignedFocusPlaces: [],
+    assignedFillerPlaces: [],
     mealState,
     interestCounts,
     globallyAssignedPlaceIds,
@@ -134,42 +149,106 @@ function filterAndSortPool(
     .sort((a, b) => comparePlacesForSelection(a, b, interestCounts));
 }
 
-function assignFocusCategoryPlaces(
-  dayStates: MutableDayState[],
+function placeMatchesFocusCategory(
+  place: OptimizerPlace,
+  focusCategory: string,
+): boolean {
+  return place.category === focusCategory;
+}
+
+function assignPlacesToFocusedDay(
+  day: MutableDayState,
   pool: OptimizerPlace[],
-  unassignedDueToTime: string[],
+  unassignedFocusDueToTime: string[],
 ): OptimizerPlace[] {
-  const remainingIds = new Set(pool.map((place) => place.id));
+  const focusCategory = day.focusCategory;
+  if (!focusCategory) {
+    return pool;
+  }
 
-  for (const day of dayStates) {
-    if (!day.focusCategory) {
-      continue;
-    }
+  const consumedIds = new Set<string>();
 
-    const matchingPlaces = pool
-      .filter(
-        (place) =>
-          remainingIds.has(place.id) &&
-          !day.globallyAssignedPlaceIds.has(place.id) &&
-          place.category === day.focusCategory,
-      )
-      .sort((a, b) => comparePlacesForSelection(a, b, day.interestCounts));
+  const focusCandidates = pool
+    .filter(
+      (place) =>
+        !day.globallyAssignedPlaceIds.has(place.id) &&
+        placeMatchesFocusCategory(place, focusCategory),
+    )
+    .sort((a, b) => comparePlacesForSelection(a, b, day.interestCounts));
 
-    for (const place of matchingPlaces) {
-      if (!remainingIds.has(place.id) || day.globallyAssignedPlaceIds.has(place.id)) {
-        continue;
-      }
-
-      if (tryAddPlaceToDay(day, place)) {
-        remainingIds.delete(place.id);
-      } else if (place.priorityRank <= 2) {
-        unassignedDueToTime.push(place.id);
-        remainingIds.delete(place.id);
-      }
+  for (const place of focusCandidates) {
+    if (tryAddPlaceToDay(day, place, "focus")) {
+      consumedIds.add(place.id);
+    } else {
+      unassignedFocusDueToTime.push(place.id);
+      consumedIds.add(place.id);
     }
   }
 
-  return pool.filter((place) => remainingIds.has(place.id));
+  const fillerCandidates = pool
+    .filter(
+      (place) =>
+        !consumedIds.has(place.id) &&
+        !day.globallyAssignedPlaceIds.has(place.id) &&
+        !placeMatchesFocusCategory(place, focusCategory) &&
+        isFoodCategory(place.category),
+    )
+    .sort((a, b) => compareByProximityToRoute(a, b, day));
+
+  for (const place of fillerCandidates) {
+    if (!canAddPlace(day, place)) {
+      continue;
+    }
+
+    if (tryAddPlaceToDay(day, place, "filler")) {
+      consumedIds.add(place.id);
+    }
+  }
+
+  return pool.filter((place) => !consumedIds.has(place.id));
+}
+
+function compareByProximityToRoute(
+  a: OptimizerPlace,
+  b: OptimizerPlace,
+  day: MutableDayState,
+): number {
+  const anchor = routeAnchor(day);
+  if (!anchor) {
+    return 0;
+  }
+
+  return haversineKm(a, anchor) - haversineKm(b, anchor);
+}
+
+function routeAnchor(day: MutableDayState): LatLng | null {
+  if (day.assignedFocusPlaces.length > 0) {
+    return day.assignedFocusPlaces[day.assignedFocusPlaces.length - 1];
+  }
+
+  if (day.lockedPlaces.length > 0) {
+    return day.lockedPlaces[day.lockedPlaces.length - 1];
+  }
+
+  return day.centroid;
+}
+
+function assignPlacesToGeneralDay(
+  dayState: MutableDayState,
+  pool: OptimizerPlace[],
+  unassignedDueToTime: string[],
+): void {
+  const sortedPool = [...pool]
+    .filter((place) => !dayState.globallyAssignedPlaceIds.has(place.id))
+    .sort((a, b) => comparePlacesForSelection(a, b, dayState.interestCounts));
+
+  for (const place of sortedPool) {
+    if (tryAddPlaceToDay(dayState, place, "general")) {
+      continue;
+    }
+
+    unassignedDueToTime.push(place.id);
+  }
 }
 
 function assignPlacesAcrossDays(
@@ -180,6 +259,10 @@ function assignPlacesAcrossDays(
   const availablePool = pool.filter((place) =>
     dayStates.every((day) => !day.globallyAssignedPlaceIds.has(place.id)),
   );
+
+  if (availablePool.length === 0) {
+    return;
+  }
 
   const clusterAssignments = kMeansClusterAssignments(availablePool, dayStates.length);
   const clusters = new Map<number, OptimizerPlace[]>();
@@ -220,7 +303,7 @@ function assignPlacesAcrossDays(
       )
     ) {
       for (const place of cluster.places) {
-        addPlaceToDay(targetDay, place);
+        addPlaceToDay(targetDay, place, "general");
         remaining.delete(place.id);
       }
       continue;
@@ -238,7 +321,7 @@ function assignPlacesAcrossDays(
       }
 
       const day = pickDayForPlace(dayStates, place);
-      if (day && tryAddPlaceToDay(day, place)) {
+      if (day && tryAddPlaceToDay(day, place, "general")) {
         remaining.delete(place.id);
       } else if (place.priorityRank <= 2) {
         unassignedDueToTime.push(place.id);
@@ -255,38 +338,9 @@ function assignPlacesAcrossDays(
 
     if (place.priorityRank >= 3) {
       const day = pickDayForPlace(dayStates, place);
-      if (day && tryAddPlaceToDay(day, place)) {
+      if (day && tryAddPlaceToDay(day, place, "general")) {
         continue;
       }
-    }
-
-    unassignedDueToTime.push(place.id);
-  }
-}
-
-function assignPlacesToSingleDay(
-  dayState: MutableDayState,
-  pool: OptimizerPlace[],
-  unassignedDueToTime: string[],
-): void {
-  const sortedPool = [...pool]
-    .filter((place) => !dayState.globallyAssignedPlaceIds.has(place.id))
-    .sort((a, b) => {
-      const aMatchesFocus =
-        dayState.focusCategory && a.category === dayState.focusCategory ? 0 : 1;
-      const bMatchesFocus =
-        dayState.focusCategory && b.category === dayState.focusCategory ? 0 : 1;
-
-      if (aMatchesFocus !== bMatchesFocus) {
-        return aMatchesFocus - bMatchesFocus;
-      }
-
-      return comparePlacesForSelection(a, b, dayState.interestCounts);
-    });
-
-  for (const place of sortedPool) {
-    if (tryAddPlaceToDay(dayState, place)) {
-      continue;
     }
 
     unassignedDueToTime.push(place.id);
@@ -320,6 +374,15 @@ function pickDayForPlace(
     dayStates
       .filter((day) => canAddPlace(day, place))
       .sort((a, b) => {
+        const aMatchesFocus =
+          a.focusCategory && placeMatchesFocusCategory(place, a.focusCategory) ? 0 : 1;
+        const bMatchesFocus =
+          b.focusCategory && placeMatchesFocusCategory(place, b.focusCategory) ? 0 : 1;
+
+        if (aMatchesFocus !== bMatchesFocus) {
+          return aMatchesFocus - bMatchesFocus;
+        }
+
         const distanceA = a.centroid ? haversineKm(place, a.centroid) : 9999;
         const distanceB = b.centroid ? haversineKm(place, b.centroid) : 9999;
         if (distanceA !== distanceB) {
@@ -342,6 +405,10 @@ function orderPlacesForDay(day: MutableDayState): OptimizerPlace[] {
     return [];
   }
 
+  if (day.focusCategory && day.assignedFocusPlaces.length > 0) {
+    return orderFocusedDayPlaces(day);
+  }
+
   const startFrom =
     day.lockedPlaces.length > 0
       ? day.lockedPlaces[day.lockedPlaces.length - 1]
@@ -350,7 +417,82 @@ function orderPlacesForDay(day: MutableDayState): OptimizerPlace[] {
   return nearestNeighborOrder(day.assignedPlaces, startFrom);
 }
 
-function tryAddPlaceToDay(day: MutableDayState, place: OptimizerPlace): boolean {
+function orderFocusedDayPlaces(day: MutableDayState): OptimizerPlace[] {
+  const startFrom =
+    day.lockedPlaces.length > 0
+      ? day.lockedPlaces[day.lockedPlaces.length - 1]
+      : day.centroid;
+
+  const focusRoute = nearestNeighborOrder(day.assignedFocusPlaces, startFrom);
+
+  if (day.assignedFillerPlaces.length === 0) {
+    return focusRoute;
+  }
+
+  return insertFillerPlacesIntoRoute(focusRoute, day.assignedFillerPlaces);
+}
+
+function insertFillerPlacesIntoRoute(
+  focusRoute: OptimizerPlace[],
+  fillers: OptimizerPlace[],
+): OptimizerPlace[] {
+  const route = [...focusRoute];
+
+  for (const filler of fillers) {
+    if (route.length === 0) {
+      route.push(filler);
+      continue;
+    }
+
+    let bestIndex = route.length;
+    let bestExtraTravel = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index <= route.length; index += 1) {
+      const extraTravel = insertionTravelCost(route, filler, index);
+      if (extraTravel < bestExtraTravel) {
+        bestExtraTravel = extraTravel;
+        bestIndex = index;
+      }
+    }
+
+    route.splice(bestIndex, 0, filler);
+  }
+
+  return route;
+}
+
+function insertionTravelCost(
+  route: OptimizerPlace[],
+  filler: OptimizerPlace,
+  index: number,
+): number {
+  const previous = index > 0 ? route[index - 1] : null;
+  const next = index < route.length ? route[index] : null;
+
+  if (!previous && !next) {
+    return 0;
+  }
+
+  if (!previous) {
+    return haversineTravelMinutes(filler, next!);
+  }
+
+  if (!next) {
+    return haversineTravelMinutes(previous, filler);
+  }
+
+  const before = haversineTravelMinutes(previous, next);
+  const after =
+    haversineTravelMinutes(previous, filler) + haversineTravelMinutes(filler, next);
+
+  return after - before;
+}
+
+function tryAddPlaceToDay(
+  day: MutableDayState,
+  place: OptimizerPlace,
+  kind: "focus" | "filler" | "general",
+): boolean {
   if (day.globallyAssignedPlaceIds.has(place.id)) {
     return false;
   }
@@ -359,12 +501,23 @@ function tryAddPlaceToDay(day: MutableDayState, place: OptimizerPlace): boolean 
     return false;
   }
 
-  addPlaceToDay(day, place);
+  addPlaceToDay(day, place, kind);
   return true;
 }
 
-function addPlaceToDay(day: MutableDayState, place: OptimizerPlace): void {
+function addPlaceToDay(
+  day: MutableDayState,
+  place: OptimizerPlace,
+  kind: "focus" | "filler" | "general",
+): void {
   day.assignedPlaces.push(place);
+
+  if (kind === "focus") {
+    day.assignedFocusPlaces.push(place);
+  } else if (kind === "filler") {
+    day.assignedFillerPlaces.push(place);
+  }
+
   day.globallyAssignedPlaceIds.add(place.id);
   registerInterest(day.interestCounts, place.interest);
 

@@ -31,6 +31,7 @@ export default async function PlanificarPage({
         <PlanningBoard
           tripId={tripId}
           days={data.days}
+          tripPlaceCategories={data.tripPlaceCategories}
           tripSettings={data.tripSettings}
           tripAnchorDate={data.tripAnchorDate}
           tripAnchorSource={data.tripAnchorSource}

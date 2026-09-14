@@ -79,7 +79,7 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
 
   const dayIds = itineraryDays.map((day) => day.id);
 
-  const [itemsResult, unplannedResult] = await Promise.all([
+  const [itemsResult, unplannedResult, categoriesResult] = await Promise.all([
     dayIds.length > 0
       ? supabase
           .from("itinerary_items")
@@ -95,6 +95,7 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
       .eq("trip_id", tripId)
       .eq("status", PLACE_STATUS_UNPLANNED)
       .order("name", { ascending: true }),
+    supabase.from("places").select("category").eq("trip_id", tripId),
   ]);
 
   if (itemsResult.error) {
@@ -104,6 +105,18 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
   if (unplannedResult.error) {
     return { data: null, error: unplannedResult.error.message };
   }
+
+  if (categoriesResult.error) {
+    return { data: null, error: categoriesResult.error.message };
+  }
+
+  const tripPlaceCategories = Array.from(
+    new Set(
+      (categoriesResult.data ?? [])
+        .map((row) => row.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "es"));
 
   const tripConstraints: TripDayConstraintsInput = {
     timezone: tripSettings.timezone,
@@ -163,6 +176,7 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
       },
       tripConstraints,
       dayConstraintInputs,
+      tripPlaceCategories,
     );
 
     return {
@@ -224,6 +238,7 @@ export async function loadPlanningBoardData(tripId: string): Promise<{
       days,
       unplannedPlaces,
       unlocatedPlaces,
+      tripPlaceCategories,
       tripSettings,
       tripAnchorDate,
       tripAnchorSource,
