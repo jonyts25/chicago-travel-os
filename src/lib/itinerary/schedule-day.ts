@@ -9,6 +9,8 @@ export type DayScheduleItemInput = {
   durationMinutes: number;
   isFixed: boolean;
   fixedStartTime: string | null;
+  /** Minutes to the next stop; null for the last item of the day. */
+  travelMinutesToNext?: number | null;
 };
 
 export type ComputedItemSchedule = {
@@ -99,11 +101,13 @@ export function calculateDaySchedule(
     const lastAnchorIndex = sorted.findIndex((item) => item.id === lastAnchor.id);
 
     if (lastAnchorIndex < sorted.length - 1) {
+      const lastAnchorItem = sorted[lastAnchorIndex];
       scheduleForward(
         sorted,
         lastAnchorIndex + 1,
         sorted.length,
-        scheduleById.get(lastAnchor.id)!.endMinutes + travelMinutes,
+        scheduleById.get(lastAnchor.id)!.endMinutes +
+          travelAfterItem(lastAnchorItem, travelMinutes),
         travelMinutes,
         scheduleById,
       );
@@ -132,6 +136,17 @@ export function calculateDaySchedule(
   return { schedules, warnings };
 }
 
+function travelAfterItem(
+  item: DayScheduleItemInput,
+  fallbackTravelMinutes: number,
+): number {
+  if (item.travelMinutesToNext != null && item.travelMinutesToNext >= 0) {
+    return item.travelMinutesToNext;
+  }
+
+  return fallbackTravelMinutes;
+}
+
 function scheduleForward(
   sorted: DayScheduleItemInput[],
   from: number,
@@ -145,14 +160,15 @@ function scheduleForward(
   for (let index = from; index < to; index += 1) {
     const item = sorted[index];
     if (scheduleById.has(item.id)) {
-      current = scheduleById.get(item.id)!.endMinutes + travelMinutes;
+      current =
+        scheduleById.get(item.id)!.endMinutes + travelAfterItem(item, travelMinutes);
       continue;
     }
 
     const startMinutes = current;
     const endMinutes = startMinutes + item.durationMinutes;
     scheduleById.set(item.id, { id: item.id, startMinutes, endMinutes });
-    current = endMinutes + travelMinutes;
+    current = endMinutes + travelAfterItem(item, travelMinutes);
   }
 }
 
@@ -175,7 +191,12 @@ function scheduleBackward(
     const endMinutes = nextEnd;
     const startMinutes = endMinutes - item.durationMinutes;
     scheduleById.set(item.id, { id: item.id, startMinutes, endMinutes });
-    nextEnd = startMinutes - travelMinutes;
+    const previousItem = index > from ? sorted[index - 1] : null;
+    const gapBefore =
+      previousItem != null
+        ? travelAfterItem(previousItem, travelMinutes)
+        : travelMinutes;
+    nextEnd = startMinutes - gapBefore;
   }
 }
 
@@ -193,7 +214,10 @@ function scheduleBetweenAnchors(
     return;
   }
 
-  const forwardStart = leftAnchor.endMinutes + travelMinutes;
+  const leftAnchorItem = sorted.find((item) => item.id === leftAnchor.id);
+  const forwardStart =
+    leftAnchor.endMinutes +
+    (leftAnchorItem ? travelAfterItem(leftAnchorItem, travelMinutes) : travelMinutes);
   let current = forwardStart;
   const forwardSchedule: ComputedItemSchedule[] = [];
 
@@ -201,12 +225,16 @@ function scheduleBetweenAnchors(
     const startMinutes = current;
     const endMinutes = startMinutes + item.durationMinutes;
     forwardSchedule.push({ id: item.id, startMinutes, endMinutes });
-    current = endMinutes + travelMinutes;
+    current = endMinutes + travelAfterItem(item, travelMinutes);
   }
 
+  const lastMiddleItem = middleItems[middleItems.length - 1];
   const fitsBeforeRightAnchor =
     !rightAnchor ||
-    forwardSchedule[forwardSchedule.length - 1].endMinutes + travelMinutes <=
+    forwardSchedule[forwardSchedule.length - 1].endMinutes +
+      (lastMiddleItem
+        ? travelAfterItem(lastMiddleItem, travelMinutes)
+        : travelMinutes) <=
       rightAnchor.startMinutes;
 
   if (fitsBeforeRightAnchor) {
@@ -229,7 +257,12 @@ function scheduleBetweenAnchors(
     const endMinutes = nextEnd;
     const startMinutes = endMinutes - item.durationMinutes;
     scheduleById.set(item.id, { id: item.id, startMinutes, endMinutes });
-    nextEnd = startMinutes - travelMinutes;
+    const previousItem = index > 0 ? middleItems[index - 1] : leftAnchorItem;
+    const gapBefore =
+      previousItem != null
+        ? travelAfterItem(previousItem, travelMinutes)
+        : travelMinutes;
+    nextEnd = startMinutes - gapBefore;
   }
 }
 
