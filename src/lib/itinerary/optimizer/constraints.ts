@@ -8,7 +8,7 @@ export const MAX_MEALS_PER_DAY = 3;
 const FOOD_CATEGORY_MARKERS = ["restaurante", "comida", "café", "cafe"];
 
 export function normalizePlaceInterest(value: string | null | undefined): PlaceInterest {
-  if (value === "jonathan" || value === "wife" || value === "both") {
+  if (value === "jonathan" || value === "mercedes" || value === "both") {
     return value;
   }
 
@@ -72,7 +72,7 @@ export function canAddFoodPlace(
 export type InterestCounts = Record<PlaceInterest, number>;
 
 export function createInterestCounts(): InterestCounts {
-  return { jonathan: 0, wife: 0, both: 0 };
+  return { jonathan: 0, mercedes: 0, both: 0 };
 }
 
 export function registerInterest(counts: InterestCounts, interest: PlaceInterest): void {

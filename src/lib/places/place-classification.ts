@@ -6,7 +6,7 @@ export type PlaceCreationMeta = {
 };
 
 const PRIORITY_VALUES: PlacePriority[] = ["must", "high", "medium", "if_time"];
-const INTEREST_VALUES: PlaceInterest[] = ["jonathan", "wife", "both"];
+const INTEREST_VALUES: PlaceInterest[] = ["jonathan", "mercedes", "both"];
 
 export function isPlacePriority(value: string | null | undefined): value is PlacePriority {
   return PRIORITY_VALUES.includes(value as PlacePriority);

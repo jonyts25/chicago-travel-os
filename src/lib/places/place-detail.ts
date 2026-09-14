@@ -50,7 +50,7 @@ export const PLACE_PRIORITIES: {
   },
 ];
 
-export type PlaceInterest = "jonathan" | "wife" | "both";
+export type PlaceInterest = "jonathan" | "mercedes" | "both";
 
 export const PLACE_INTERESTS: {
   value: PlaceInterest;
@@ -65,7 +65,7 @@ export const PLACE_INTERESTS: {
     selectedChipClass: "border-blue-400 bg-blue-500/30 text-white ring-2 ring-blue-400/50",
   },
   {
-    value: "wife",
+    value: "mercedes",
     label: "Mercedes",
     chipClass: "border-fuchsia-500/40 bg-fuchsia-950/30 text-fuchsia-200",
     selectedChipClass:
