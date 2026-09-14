@@ -111,6 +111,7 @@ export async function runSingleDayItineraryOptimizer(
       error: "Día no encontrado.",
       assignedByDay: [],
       unassignedDueToTime: 0,
+      unassignedFocusDueToTime: 0,
       withoutCoordinates: context.withoutCoordinates,
       warnings: [],
     };
@@ -127,6 +128,7 @@ export async function runSingleDayItineraryOptimizer(
       error: "Debes iniciar sesión.",
       assignedByDay: [],
       unassignedDueToTime: 0,
+      unassignedFocusDueToTime: 0,
       withoutCoordinates: context.withoutCoordinates,
       warnings: [],
     };
@@ -143,6 +145,7 @@ export async function runSingleDayItineraryOptimizer(
       error: itemsError.message,
       assignedByDay: [],
       unassignedDueToTime: 0,
+      unassignedFocusDueToTime: 0,
       withoutCoordinates: context.withoutCoordinates,
       warnings: [],
     };
@@ -165,6 +168,7 @@ export async function runSingleDayItineraryOptimizer(
         error: deleteError.message,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: context.withoutCoordinates,
         warnings: [],
       };
@@ -182,6 +186,7 @@ export async function runSingleDayItineraryOptimizer(
         error: unplanError.message,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: context.withoutCoordinates,
         warnings: [],
       };
@@ -200,6 +205,7 @@ export async function runSingleDayItineraryOptimizer(
       error: "No se pudo recargar el día.",
       assignedByDay: [],
       unassignedDueToTime: 0,
+      unassignedFocusDueToTime: 0,
       withoutCoordinates: refreshed.withoutCoordinates,
       warnings: [],
     };
@@ -245,6 +251,7 @@ async function loadOptimizerContext(tripId: string): Promise<
         error: "Debes iniciar sesión.",
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: 0,
         warnings: [],
       },
@@ -260,6 +267,7 @@ async function loadOptimizerContext(tripId: string): Promise<
         error: ensureError,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: 0,
         warnings: [],
       },
@@ -298,6 +306,7 @@ async function loadOptimizerContext(tripId: string): Promise<
         error: placesResult.error.message,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: 0,
         warnings: [],
       },
@@ -312,6 +321,7 @@ async function loadOptimizerContext(tripId: string): Promise<
         error: itemsResult.error.message,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: 0,
         warnings: [],
       },
@@ -326,6 +336,7 @@ async function loadOptimizerContext(tripId: string): Promise<
         error: tripResult.error.message,
         assignedByDay: [],
         unassignedDueToTime: 0,
+        unassignedFocusDueToTime: 0,
         withoutCoordinates: 0,
         warnings: [],
       },
@@ -350,6 +361,13 @@ async function loadOptimizerContext(tripId: string): Promise<
   }));
 
   const allPlaces = (placesResult.data ?? []) as PlaceRow[];
+  const tripPlaceCategories = Array.from(
+    new Set(
+      allPlaces
+        .map((place) => place.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "es"));
   const unplannedPlaces = allPlaces.filter((place) => place.status === PLACE_STATUS_UNPLANNED);
   const withoutCoordinates = unplannedPlaces.filter((place) => !hasCoordinates(place)).length;
 
@@ -422,6 +440,7 @@ async function loadOptimizerContext(tripId: string): Promise<
       },
       tripConstraints,
       dayConstraintInputs,
+      tripPlaceCategories,
     );
 
     return {
@@ -487,6 +506,7 @@ async function applyOptimizerPlan(
         error: insertError.message,
         assignedByDay,
         unassignedDueToTime: plan.unassignedDueToTime.length,
+        unassignedFocusDueToTime: plan.unassignedFocusDueToTime.length,
         withoutCoordinates: context.withoutCoordinates,
         warnings,
       };
@@ -512,10 +532,19 @@ async function applyOptimizerPlan(
         error: updateError.message,
         assignedByDay,
         unassignedDueToTime: plan.unassignedDueToTime.length,
+        unassignedFocusDueToTime: plan.unassignedFocusDueToTime.length,
         withoutCoordinates: context.withoutCoordinates,
         warnings,
       };
     }
+  }
+
+  if (plan.unassignedFocusDueToTime.length > 0) {
+    const focusDays = context.dayContexts.filter((day) => day.focusCategory);
+    const focusLabel = focusDays[0]?.focusLabel ?? focusDays[0]?.focusCategory ?? "enfoque";
+    warnings.push(
+      `${plan.unassignedFocusDueToTime.length} lugar(es) de ${focusLabel} no cupieron en su día — siguen sin planear.`,
+    );
   }
 
   if (plan.unassignedDueToTime.length > 0) {
@@ -545,6 +574,7 @@ async function applyOptimizerPlan(
     ok: true,
     assignedByDay,
     unassignedDueToTime: plan.unassignedDueToTime.length,
+    unassignedFocusDueToTime: plan.unassignedFocusDueToTime.length,
     withoutCoordinates: context.withoutCoordinates,
     warnings,
   };

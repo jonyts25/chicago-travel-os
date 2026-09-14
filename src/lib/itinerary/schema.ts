@@ -89,6 +89,8 @@ export type PlanningBoardData = {
   days: PlanningDay[];
   unplannedPlaces: PlanningPlace[];
   unlocatedPlaces: PlanningPlace[];
+  /** Distinct places.category values in this trip (for day focus picker). */
+  tripPlaceCategories: string[];
   tripSettings: TripPlanningSettings;
   tripAnchorDate: string | null;
   tripAnchorSource: string | null;

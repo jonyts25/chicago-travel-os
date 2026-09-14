@@ -63,6 +63,8 @@ export type OptimizerDayPlan = {
 export type OptimizerPlan = {
   dayPlans: OptimizerDayPlan[];
   unassignedDueToTime: string[];
+  /** Focus-category places that did not fit on their focus day — stay unplanned. */
+  unassignedFocusDueToTime: string[];
 };
 
 export type OptimizerSummary = {
@@ -70,6 +72,7 @@ export type OptimizerSummary = {
   error?: string;
   assignedByDay: { dayNumber: number; count: number }[];
   unassignedDueToTime: number;
+  unassignedFocusDueToTime: number;
   withoutCoordinates: number;
   warnings: string[];
 };

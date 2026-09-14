@@ -37,7 +37,7 @@ import { buttons, cn, surfaces, typography } from "@/lib/ui/styles";
 
 type PlanningBoardProps = Pick<
   PlanningBoardData,
-  "days" | "tripSettings" | "tripAnchorDate" | "tripAnchorSource"
+  "days" | "tripPlaceCategories" | "tripSettings" | "tripAnchorDate" | "tripAnchorSource"
 > & {
   tripId: string;
 };
@@ -45,6 +45,7 @@ type PlanningBoardProps = Pick<
 export function PlanningBoard({
   tripId,
   days,
+  tripPlaceCategories,
   tripSettings,
   tripAnchorDate,
   tripAnchorSource,
@@ -186,7 +187,12 @@ export function PlanningBoard({
 
         {activeDay ? (
           <>
-            <DaySettingsEditor tripId={tripId} day={activeDay} disabled={isPending} />
+            <DaySettingsEditor
+              tripId={tripId}
+              day={activeDay}
+              tripPlaceCategories={tripPlaceCategories}
+              disabled={isPending}
+            />
             <DayPlanPanel
               day={activeDay}
               tripSettings={tripSettings}
@@ -291,6 +297,12 @@ function OptimizerSummaryPanel({ summary }: { summary: OptimizerSummary }) {
           <dt className={typography.secondary}>Sin asignar (tiempo)</dt>
           <dd className={cn(typography.body, "font-medium text-white")}>
             {summary.unassignedDueToTime}
+          </dd>
+        </div>
+        <div>
+          <dt className={typography.secondary}>Enfoque sin cupo</dt>
+          <dd className={cn(typography.body, "font-medium text-white")}>
+            {summary.unassignedFocusDueToTime}
           </dd>
         </div>
         <div>

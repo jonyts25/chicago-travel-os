@@ -54,41 +54,73 @@ export function normalizeFocusText(value: string): string {
     .replace(/\p{M}/gu, "");
 }
 
+function matchFocusToCategory(
+  normalizedFocus: string,
+  category: string,
+): boolean {
+  const categoryNormalized = normalizeFocusText(category);
+
+  if (categoryNormalized === normalizedFocus) {
+    return true;
+  }
+
+  return (
+    categoryNormalized.includes(normalizedFocus) ||
+    normalizedFocus.includes(categoryNormalized)
+  );
+}
+
+/** Resolve free-text focus to a known place category (canonical or from the trip). */
 export function resolveFocusCategory(
   focus: string | null | undefined,
+  tripCategories: readonly string[] = [],
 ): PlaceCategory | null {
   if (!focus?.trim()) {
     return null;
   }
 
   const normalized = normalizeFocusText(focus);
+  const candidates = [
+    ...new Set([
+      ...tripCategories.filter((value) => value?.trim()),
+      ...PLACE_CATEGORIES,
+    ]),
+  ];
 
-  for (const category of PLACE_CATEGORIES) {
-    if (normalizeFocusText(category) === normalized) {
-      return category;
-    }
-  }
-
-  for (const category of PLACE_CATEGORIES) {
-    const categoryNormalized = normalizeFocusText(category);
-    if (
-      categoryNormalized.includes(normalized) ||
-      normalized.includes(categoryNormalized)
-    ) {
-      return category;
+  for (const category of candidates) {
+    if (matchFocusToCategory(normalized, category)) {
+      return category as PlaceCategory;
     }
   }
 
   return null;
 }
 
+export function formatFocusCategoryHint(
+  focus: string | null | undefined,
+  tripCategories: readonly string[],
+): string {
+  const category = resolveFocusCategory(focus, tripCategories);
+  if (category) {
+    return `Categoría detectada: ${category} (prioridad en el optimizador).`;
+  }
+
+  if (!focus?.trim()) {
+    return "";
+  }
+
+  const suggestions = tripCategories.length > 0 ? tripCategories.join(", ") : PLACE_CATEGORIES.join(", ");
+  return `No coincide con una categoría del viaje. Prueba: ${suggestions}.`;
+}
+
 export function resolveDayConstraints(
   day: ItineraryDayConstraintsInput,
   trip: TripDayConstraintsInput,
   allDays: ItineraryDayConstraintsInput[],
+  tripCategories: readonly string[] = [],
 ): ResolvedDayConstraints {
   const focus = day.focus?.trim() || null;
-  const focusCategory = resolveFocusCategory(focus);
+  const focusCategory = resolveFocusCategory(focus, tripCategories);
   const focusLabel = focus;
 
   let dayStartMinutes = DEFAULT_DAY_START_MINUTES;
